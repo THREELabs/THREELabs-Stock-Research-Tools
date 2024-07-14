@@ -1,5 +1,3 @@
-#pip install pandas tqdm tabulate requests matplotlib
-
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -68,7 +66,7 @@ def get_recommendations(history, avg_weekly_change):
     buy_price = current_price * (1 - discount)
     
     # Calculate sell price: Ensure it's always higher than the current price
-    sell_price = current_price * (1 + max(0.02, avg_weekly_change))
+    sell_price = current_price * (1 + max(0.02, abs(avg_weekly_change)))
     
     return buy_price, sell_price
 
@@ -91,13 +89,15 @@ def analyze_stock(ticker):
         avg_weekly_change = analyze_weekly_change(history)
         buy_price, sell_price = get_recommendations(history, avg_weekly_change)
 
+        potential_gain = ((sell_price - buy_price) / buy_price) * 100
+
         return {
             'ticker': ticker,
             'current_price': current_price,
             'rsi': current_rsi,
             'buy_price': buy_price,
             'sell_price': sell_price,
-            'potential_gain': (sell_price / buy_price - 1) * 100
+            'potential_gain': potential_gain
         }
 
     return None
@@ -253,7 +253,7 @@ def main():
                 print(f"   RSI: {stock['rsi']:.2f}")
                 print(f"   Recommended Buy Price: ${stock['buy_price']:.2f}")
                 print(f"   Recommended Sell Price: ${stock['sell_price']:.2f}")
-                print(f"   Potential Gain: {stock['potential_gain']:.2%}\n")
+                print(f"   Potential Gain: {stock['potential_gain']:.2f}%\n")
 
         elif choice == '3':
             display_glossary()
