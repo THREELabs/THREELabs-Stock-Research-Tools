@@ -1,4 +1,5 @@
-#pip install pandas tqdm tabulate requests matplotlib
+#pip install pandas numpy requests tabulate matplotlib scikit-learn textblob plotly beautifulsoup4 fredapi
+
 
 import yfinance as yf
 import pandas as pd
@@ -9,6 +10,13 @@ import time
 import random
 import requests
 from tabulate import tabulate
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from textblob import TextBlob
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from bs4 import BeautifulSoup
+from fredapi import Fred
 
 def get_tickers(num_stocks):
     base_url = "https://api.nasdaq.com/api/screener/stocks?tableonly=true&limit=7754&download=true"
@@ -56,6 +64,100 @@ def calculate_rsi(data, window=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
+def calculate_macd(data, short_window=12, long_window=26, signal_window=9):
+    short_ema = data['Close'].ewm(span=short_window, adjust=False).mean()
+    long_ema = data['Close'].ewm(span=long_window, adjust=False).mean()
+    macd = short_ema - long_ema
+    signal = macd.ewm(span=signal_window, adjust=False).mean()
+    return macd, signal
+
+def calculate_bollinger_bands(data, window=20, num_std=2):
+    rolling_mean = data['Close'].rolling(window=window).mean()
+    rolling_std = data['Close'].rolling(window=window).std()
+    upper_band = rolling_mean + (rolling_std * num_std)
+    lower_band = rolling_mean - (rolling_std * num_std)
+    return upper_band, lower_band
+
+def calculate_fibonacci_retracements(data):
+    high = data['High'].max()
+    low = data['Low'].min()
+    diff = high - low
+    levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
+    retracements = [high - (diff * level) for level in levels]
+    return retracements
+
+def calculate_position_size(account_size, risk_per_trade, entry_price, stop_loss):
+    risk_amount = account_size * risk_per_trade
+    position_size = risk_amount / (entry_price - stop_loss)
+    return position_size
+
+def backtest_strategy(data, strategy_function):
+    results = strategy_function(data)
+    return results
+
+def get_real_time_data(ticker):
+    stock = yf.Ticker(ticker)
+    data = stock.history(period="1d", interval="1m")
+    return data
+
+def analyze_sentiment(ticker):
+    url = f"https://finviz.com/quote.ashx?t={ticker}"
+    resp = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+    soup = BeautifulSoup(resp.text, 'html.parser')
+    news_table = soup.find(id='news-table')
+    news_rows = news_table.findAll('tr')
+    
+    parsed_news = []
+    for row in news_rows:
+        title = row.a.get_text()
+        date_data = row.td.text.split(' ')
+        if len(date_data) == 1:
+            time = date_data[0]
+        else:
+            date = date_data[0]
+            time = date_data[1]
+        parsed_news.append([date, time, title])
+    
+    sentiment_scores = [TextBlob(article[2]).sentiment.polarity for article in parsed_news]
+    return np.mean(sentiment_scores)
+
+def plot_interactive_chart(data, ticker):
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                        vertical_spacing=0.03, subplot_titles=(f'{ticker} Stock Price', 'Volume'), 
+                        row_width=[0.2, 0.7])
+
+    fig.add_trace(go.Candlestick(x=data.index,
+                                 open=data['Open'],
+                                 high=data['High'],
+                                 low=data['Low'],
+                                 close=data['Close'],
+                                 name='Price'),
+                  row=1, col=1)
+
+    fig.add_trace(go.Bar(x=data.index, y=data['Volume'], name='Volume'),
+                  row=2, col=1)
+
+    fig.update_layout(height=600, width=1000, title_text=f"{ticker} Stock Analysis")
+    fig.show()
+
+def analyze_portfolio(portfolio):
+    total_value = sum(stock['value'] for stock in portfolio)
+    weights = [stock['value'] / total_value for stock in portfolio]
+    returns = [stock['return'] for stock in portfolio]
+    
+    portfolio_return = sum(w * r for w, r in zip(weights, returns))
+    portfolio_risk = np.sqrt(sum((w * r)**2 for w, r in zip(weights, returns)))
+    
+    return portfolio_return, portfolio_risk
+
+def get_economic_indicators():
+    fred = Fred(api_key='d48823c5969661b080289ace4e0df569')
+    gdp_growth = fred.get_series('GDP')
+    unemployment_rate = fred.get_series('UNRATE')
+    inflation_rate = fred.get_series('CPIAUCSL')
+    
+    return gdp_growth, unemployment_rate, inflation_rate
+
 def analyze_weekly_change(history):
     weekly_changes = history['Close'].resample('W').last().pct_change()
     return weekly_changes.mean()
@@ -74,20 +176,24 @@ def get_recommendations(history, avg_weekly_change):
 
 def analyze_stock(ticker):
     stock, history = get_stock_data(ticker)
-    if stock is None or history is None or history.empty or len(history) < 14:  # Minimum data for RSI calculation
+    if stock is None or history is None or history.empty or len(history) < 14:
         return None
 
     history['RSI'] = calculate_rsi(history)
     history['SMA_50'] = history['Close'].rolling(window=50).mean()
     history['SMA_200'] = history['Close'].rolling(window=200).mean()
+    history['MACD'], history['Signal'] = calculate_macd(history)
+    history['Upper_BB'], history['Lower_BB'] = calculate_bollinger_bands(history)
 
     current_price = history['Close'].iloc[-1]
     current_rsi = history['RSI'].iloc[-1]
     sma_50 = history['SMA_50'].iloc[-1]
     sma_200 = history['SMA_200'].iloc[-1]
 
-    # Relaxed criteria for promising stocks
-    if (current_rsi < 40 and current_price > sma_50 * 0.95):  # Relaxed RSI and price condition
+    fib_levels = calculate_fibonacci_retracements(history)
+    sentiment = analyze_sentiment(ticker)
+
+    if (current_rsi < 40 and current_price > sma_50 * 0.95):
         avg_weekly_change = analyze_weekly_change(history)
         buy_price, sell_price = get_recommendations(history, avg_weekly_change)
 
@@ -97,7 +203,9 @@ def analyze_stock(ticker):
             'rsi': current_rsi,
             'buy_price': buy_price,
             'sell_price': sell_price,
-            'potential_gain': (sell_price / buy_price - 1) * 100
+            'potential_gain': (sell_price / buy_price - 1) * 100,
+            'fibonacci_levels': fib_levels,
+            'sentiment': sentiment
         }
 
     return None
@@ -162,108 +270,25 @@ def display_stock_info(ticker):
     print("\nRecommendations:")
     print(tabulate(recommendation_data, headers=["Action", "Price"], tablefmt="grid"))
 
-def display_glossary():
-    glossary = {
-        "Stock": "A share in the ownership of a company, representing a claim on the company's assets and earnings.",
-        "Bull Market": "A market condition in which stock prices are rising or are expected to rise.",
-        "Bear Market": "A market condition in which stock prices are falling or are expected to fall.",
-        "Dividend": "A portion of a company's earnings paid out to shareholders.",
-        "P/E Ratio": "Price-to-Earnings Ratio, a valuation ratio of a company's current share price compared to its per-share earnings.",
-        "Market Cap": "The total dollar market value of a company's outstanding shares.",
-        "Volume": "The number of shares traded during a given time period.",
-        "Yield": "The income return on an investment, such as the interest or dividends received from holding a particular security.",
-        "IPO": "Initial Public Offering, the first sale of stock by a private company to the public.",
-        "Volatility": "A statistical measure of the dispersion of returns for a given security or market index.",
-        "Blue Chip": "Stock of a large, well-established and financially sound company that has operated for many years.",
-        "RSI": "Relative Strength Index, a momentum indicator that measures the magnitude of recent price changes to evaluate overbought or oversold conditions.",
-        "SMA": "Simple Moving Average, an arithmetic moving average calculated by adding recent prices and then dividing that by the number of time periods in the calculation average.",
-        "Broker": "An individual or firm that charges a fee or commission for executing buy and sell orders submitted by an investor.",
-        "Exchange": "A marketplace in which securities, commodities, derivatives and other financial instruments are traded.",
-        "NASDAQ": "National Association of Securities Dealers Automated Quotations, a global electronic marketplace for buying and selling securities.",
-        "NYSE": "New York Stock Exchange, the world's largest securities exchange by market capitalization.",
-        "SEC": "Securities and Exchange Commission, a U.S. government agency responsible for enforcing federal securities laws and regulating the securities industry.",
-        "Portfolio": "A grouping of financial assets such as stocks, bonds, commodities, currencies and cash equivalents.",
-        "Diversification": "A risk management strategy that mixes a wide variety of investments within a portfolio."
-    }
+    # Display technical indicators
+    print("\nTechnical Indicators:")
+    print(f"RSI: {calculate_rsi(history).iloc[-1]:.2f}")
+    macd, signal = calculate_macd(history)
+    print(f"MACD: {macd.iloc[-1]:.2f}")
+    print(f"MACD Signal: {signal.iloc[-1]:.2f}")
+    upper_bb, lower_bb = calculate_bollinger_bands(history)
+    print(f"Bollinger Bands: Upper {upper_bb.iloc[-1]:.2f}, Lower {lower_bb.iloc[-1]:.2f}")
 
-    print("\nStock Market Glossary:")
-    for term, definition in glossary.items():
-        print(f"\n{term}:")
-        print(f"  {definition}")
+    # Display Fibonacci retracements
+    fib_levels = calculate_fibonacci_retracements(history)
+    print("\nFibonacci Retracement Levels:")
+    for level, price in zip([0, 23.6, 38.2, 50, 61.8, 78.6, 100], fib_levels):
+        print(f"{level}%: ${price:.2f}")
 
-def main():
-    while True:
-        print("\nStock Analysis Tool")
-        print("1. Analyze a single stock")
-        print("2. Search for promising stocks")
-        print("3. View Stock Market Glossary")
-        print("4. Exit")
+    # Display sentiment analysis
+    sentiment = analyze_sentiment(ticker)
+    print(f"\nNews Sentiment: {sentiment:.2f} (-1 to 1, where 1 is most positive)")
 
-        choice = input("Enter your choice (1-4): ").strip()
+    # Plot interactive chart
+    plot_interactive_chart(history, ticker)
 
-        if choice == '1':
-            ticker = input("Enter the stock ticker symbol: ").strip().upper()
-            display_stock_info(ticker)
-
-        elif choice == '2':
-            while True:
-                try:
-                    num_stocks = int(input("Enter the number of stocks to search and analyze (recommended: 100 to 1000): "))
-                    if num_stocks > 0:
-                        break
-                    else:
-                        print("Please enter a positive number.")
-                except ValueError:
-                    print("Please enter a valid integer.")
-
-            print(f"Fetching {num_stocks} stock tickers...")
-            tickers_to_analyze = get_tickers(num_stocks)
-
-            if not tickers_to_analyze:
-                print("No tickers found. Please try again later.")
-                continue
-
-            print(f"Retrieved {len(tickers_to_analyze)} tickers.")
-
-            start_time = time.time()
-            promising_stocks = find_promising_stocks(tickers_to_analyze)
-            end_time = time.time()
-
-            print(f"\nAnalysis completed in {end_time - start_time:.2f} seconds.")
-            print(f"Found {len(promising_stocks)} promising stocks.")
-
-            if not promising_stocks:
-                print("No promising stocks found based on the current criteria.")
-                continue
-
-            while True:
-                try:
-                    top_n = int(input("Enter the number of top stocks to display: "))
-                    if top_n > 0:
-                        break
-                    else:
-                        print("Please enter a positive number.")
-                except ValueError:
-                    print("Please enter a valid integer.")
-
-            print(f"\nTop {min(top_n, len(promising_stocks))} Promising Stocks:")
-            for i, stock in enumerate(promising_stocks[:top_n], 1):
-                print(f"{i}. {stock['ticker']}:")
-                print(f"   Current Price: ${stock['current_price']:.2f}")
-                print(f"   RSI: {stock['rsi']:.2f}")
-                print(f"   Recommended Buy Price: ${stock['buy_price']:.2f}")
-                print(f"   Recommended Sell Price: ${stock['sell_price']:.2f}")
-                print(f"   Potential Gain: {stock['potential_gain']:.2%}\n")
-
-        elif choice == '3':
-            display_glossary()
-
-        elif choice == '4':
-            print("Thank you for using the Stock Analysis Tool. Goodbye!")
-            break
-
-        else:
-            print("Invalid choice. Please enter 1, 2, 3, or 4.")
-
-if __name__ == "__main__":
-    main()
