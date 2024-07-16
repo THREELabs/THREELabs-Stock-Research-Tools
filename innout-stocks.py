@@ -68,7 +68,8 @@ def get_recommendations(history, avg_weekly_change):
     buy_price = current_price * (1 - discount)
     
     # Calculate sell price: Ensure it's always higher than the current price
-    sell_price = current_price * (1 + max(0.02, avg_weekly_change))
+    sell_Multiplier = 1 + max(0.02, avg_weekly_change)
+    sell_price = current_price * sell_Multiplier
     
     return buy_price, sell_price
 
@@ -97,7 +98,7 @@ def analyze_stock(ticker):
             'rsi': current_rsi,
             'buy_price': buy_price,
             'sell_price': sell_price,
-            'potential_gain': (sell_price / buy_price - 1) * 100
+            'potential_gain': ((sell_price / buy_price) - 1) * 100
         }
 
     return None
@@ -162,44 +163,14 @@ def display_stock_info(ticker):
     print("\nRecommendations:")
     print(tabulate(recommendation_data, headers=["Action", "Price"], tablefmt="grid"))
 
-def display_glossary():
-    glossary = {
-        "Stock": "A share in the ownership of a company, representing a claim on the company's assets and earnings.",
-        "Bull Market": "A market condition in which stock prices are rising or are expected to rise.",
-        "Bear Market": "A market condition in which stock prices are falling or are expected to fall.",
-        "Dividend": "A portion of a company's earnings paid out to shareholders.",
-        "P/E Ratio": "Price-to-Earnings Ratio, a valuation ratio of a company's current share price compared to its per-share earnings.",
-        "Market Cap": "The total dollar market value of a company's outstanding shares.",
-        "Volume": "The number of shares traded during a given time period.",
-        "Yield": "The income return on an investment, such as the interest or dividends received from holding a particular security.",
-        "IPO": "Initial Public Offering, the first sale of stock by a private company to the public.",
-        "Volatility": "A statistical measure of the dispersion of returns for a given security or market index.",
-        "Blue Chip": "Stock of a large, well-established and financially sound company that has operated for many years.",
-        "RSI": "Relative Strength Index, a momentum indicator that measures the magnitude of recent price changes to evaluate overbought or oversold conditions.",
-        "SMA": "Simple Moving Average, an arithmetic moving average calculated by adding recent prices and then dividing that by the number of time periods in the calculation average.",
-        "Broker": "An individual or firm that charges a fee or commission for executing buy and sell orders submitted by an investor.",
-        "Exchange": "A marketplace in which securities, commodities, derivatives and other financial instruments are traded.",
-        "NASDAQ": "National Association of Securities Dealers Automated Quotations, a global electronic marketplace for buying and selling securities.",
-        "NYSE": "New York Stock Exchange, the world's largest securities exchange by market capitalization.",
-        "SEC": "Securities and Exchange Commission, a U.S. government agency responsible for enforcing federal securities laws and regulating the securities industry.",
-        "Portfolio": "A grouping of financial assets such as stocks, bonds, commodities, currencies and cash equivalents.",
-        "Diversification": "A risk management strategy that mixes a wide variety of investments within a portfolio."
-    }
-
-    print("\nStock Market Glossary:")
-    for term, definition in glossary.items():
-        print(f"\n{term}:")
-        print(f"  {definition}")
-
 def main():
     while True:
         print("\nStock Analysis Tool")
         print("1. Analyze a single stock")
         print("2. Search for promising stocks")
-        print("3. View Stock Market Glossary")
-        print("4. Exit")
+        print("3. Exit")
 
-        choice = input("Enter your choice (1-4): ").strip()
+        choice = input("Enter your choice (1-3): ").strip()
 
         if choice == '1':
             ticker = input("Enter the stock ticker symbol: ").strip().upper()
@@ -256,14 +227,11 @@ def main():
                 print(f"   Potential Gain: {stock['potential_gain']:.2%}\n")
 
         elif choice == '3':
-            display_glossary()
-
-        elif choice == '4':
             print("Thank you for using the Stock Analysis Tool. Goodbye!")
             break
 
         else:
-            print("Invalid choice. Please enter 1, 2, 3, or 4.")
+            print("Invalid choice. Please enter 1, 2, or 3.")
 
 if __name__ == "__main__":
     main()
