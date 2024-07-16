@@ -68,14 +68,13 @@ def get_recommendations(history, avg_weekly_change):
     buy_price = current_price * (1 - discount)
     
     # Calculate sell price: Ensure it's always higher than the current price
-    sell_Multiplier = 1 + max(0.02, avg_weekly_change)
-    sell_price = current_price * sell_Multiplier
+    sell_price = current_price * (1 + max(0.02, avg_weekly_change))
     
     return buy_price, sell_price
 
 def analyze_stock(ticker):
     stock, history = get_stock_data(ticker)
-    if stock is None or history is None or history.empty or len(history) < 14:  # Minimum data for RSI calculation
+    if stock is None or history is None or history.empty or len(history) < 14:
         return None
 
     history['RSI'] = calculate_rsi(history)
@@ -87,10 +86,12 @@ def analyze_stock(ticker):
     sma_50 = history['SMA_50'].iloc[-1]
     sma_200 = history['SMA_200'].iloc[-1]
 
-    # Relaxed criteria for promising stocks
-    if (current_rsi < 40 and current_price > sma_50 * 0.95):  # Relaxed RSI and price condition
+    if current_rsi < 40 and current_price > sma_50 * 0.95:
         avg_weekly_change = analyze_weekly_change(history)
         buy_price, sell_price = get_recommendations(history, avg_weekly_change)
+
+        potential_gain_percentage = ((sell_price / buy_price) - 1) * 100
+        potential_gain_dollars = (sell_price - buy_price)
 
         return {
             'ticker': ticker,
@@ -98,7 +99,8 @@ def analyze_stock(ticker):
             'rsi': current_rsi,
             'buy_price': buy_price,
             'sell_price': sell_price,
-            'potential_gain': ((sell_price / buy_price) - 1) * 100
+            'potential_gain_percentage': potential_gain_percentage,
+            'potential_gain_dollars': potential_gain_dollars
         }
 
     return None
@@ -112,7 +114,7 @@ def find_promising_stocks(tickers, max_workers=10):
             if result:
                 promising_stocks.append(result)
 
-    return sorted(promising_stocks, key=lambda x: x['potential_gain'], reverse=True)
+    return sorted(promising_stocks, key=lambda x: x['potential_gain_percentage'], reverse=True)
 
 def display_stock_info(ticker):
     stock, history = get_stock_data(ticker, period="1y")
@@ -224,7 +226,7 @@ def main():
                 print(f"   RSI: {stock['rsi']:.2f}")
                 print(f"   Recommended Buy Price: ${stock['buy_price']:.2f}")
                 print(f"   Recommended Sell Price: ${stock['sell_price']:.2f}")
-                print(f"   Potential Gain: {stock['potential_gain']:.2%}\n")
+                print(f"   Potential Gain (%): {stock['potential_gain_percentage']:.2f} (${stock['potential_gain_dollars']:.2f})\n")
 
         elif choice == '3':
             print("Thank you for using the Stock Analysis Tool. Goodbye!")
