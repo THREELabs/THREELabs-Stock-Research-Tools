@@ -1,4 +1,4 @@
-#pip install pandas tqdm tabulate requests matplotlib
+#pip install pandas tqdm tabulate requests matplotlib yfinance
 
 import yfinance as yf
 import pandas as pd
@@ -37,6 +37,24 @@ def get_tickers(num_stocks):
         print(f"Error fetching tickers: {str(e)}")
         return []
 
+def get_crypto_tickers(num_cryptos):
+    url = "https://api.coingecko.com/api/v3/coins/markets"
+    params = {
+        "vs_currency": "usd",
+        "order": "market_cap_desc",
+        "per_page": num_cryptos,
+        "page": 1,
+        "sparkline": False
+    }
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        return [f"{crypto['symbol']}-USD" for crypto in data]  # Format for yfinance
+    except Exception as e:
+        print(f"Error fetching crypto tickers: {str(e)}")
+        return []
+
 def get_stock_data(ticker, period="3mo"):
     try:
         stock = yf.Ticker(ticker)
@@ -60,21 +78,26 @@ def analyze_weekly_change(history):
     weekly_changes = history['Close'].resample('W').last().pct_change()
     return weekly_changes.mean()
 
-def get_recommendations(history, avg_weekly_change):
+def get_recommendations(history, avg_weekly_change, is_crypto=False):
     current_price = history['Close'].iloc[-1]
     
-    # Calculate buy price: Use a larger discount for negative weekly changes
-    discount = max(0.02, abs(avg_weekly_change)) if avg_weekly_change < 0 else 0.02
-    buy_price = current_price * (1 - discount)
+    if is_crypto:
+        # More aggressive strategy for cryptocurrencies
+        buy_discount = max(0.05, abs(avg_weekly_change))
+        sell_premium = max(0.07, 1.5 * abs(avg_weekly_change))
+    else:
+        # Conservative strategy for stocks
+        buy_discount = max(0.02, abs(avg_weekly_change))
+        sell_premium = max(0.03, abs(avg_weekly_change))
     
-    # Calculate sell price: Ensure it's always higher than the current price
-    sell_price = current_price * (1 + max(0.02, avg_weekly_change))
+    buy_price = current_price * (1 - buy_discount)
+    sell_price = current_price * (1 + sell_premium)
     
     return buy_price, sell_price
 
-def analyze_stock(ticker):
+def analyze_asset(ticker, is_crypto=False):
     stock, history = get_stock_data(ticker)
-    if stock is None or history is None or history.empty or len(history) < 14:
+    if history is None or history.empty or len(history) < 14:
         return None
 
     history['RSI'] = calculate_rsi(history)
@@ -86,56 +109,85 @@ def analyze_stock(ticker):
     sma_50 = history['SMA_50'].iloc[-1]
     sma_200 = history['SMA_200'].iloc[-1]
 
-    if current_rsi < 40 and current_price > sma_50 * 0.95:
-        avg_weekly_change = analyze_weekly_change(history)
-        buy_price, sell_price = get_recommendations(history, avg_weekly_change)
+    # Adjust criteria for cryptocurrencies
+    if is_crypto:
+        if current_rsi < 50:  # More lenient RSI criterion for crypto
+            avg_weekly_change = analyze_weekly_change(history)
+            buy_price, sell_price = get_recommendations(history, avg_weekly_change, is_crypto=True)
 
-        potential_gain_percentage = ((sell_price / buy_price) - 1) * 100
-        potential_gain_dollars = (sell_price - buy_price)
+            potential_gain_percentage = ((sell_price / buy_price) - 1) * 100
+            potential_gain_dollars = (sell_price - buy_price)
 
-        return {
-            'ticker': ticker,
-            'current_price': current_price,
-            'rsi': current_rsi,
-            'buy_price': buy_price,
-            'sell_price': sell_price,
-            'potential_gain_percentage': potential_gain_percentage,
-            'potential_gain_dollars': potential_gain_dollars
-        }
+            return {
+                'ticker': ticker,
+                'current_price': current_price,
+                'rsi': current_rsi,
+                'buy_price': buy_price,
+                'sell_price': sell_price,
+                'potential_gain_percentage': potential_gain_percentage,
+                'potential_gain_dollars': potential_gain_dollars
+            }
+    else:
+        if current_rsi < 40 and current_price > sma_50 * 0.95:
+            avg_weekly_change = analyze_weekly_change(history)
+            buy_price, sell_price = get_recommendations(history, avg_weekly_change)
+
+            potential_gain_percentage = ((sell_price / buy_price) - 1) * 100
+            potential_gain_dollars = (sell_price - buy_price)
+
+            return {
+                'ticker': ticker,
+                'current_price': current_price,
+                'rsi': current_rsi,
+                'buy_price': buy_price,
+                'sell_price': sell_price,
+                'potential_gain_percentage': potential_gain_percentage,
+                'potential_gain_dollars': potential_gain_dollars
+            }
 
     return None
 
-def find_promising_stocks(tickers, max_workers=10):
-    promising_stocks = []
+def find_promising_assets(tickers, max_workers=10, is_crypto=False):
+    promising_assets = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(analyze_stock, ticker): ticker for ticker in tickers}
-        for future in tqdm(as_completed(futures), total=len(tickers), desc="Analyzing stocks"):
+        futures = {executor.submit(analyze_asset, ticker, is_crypto): ticker for ticker in tickers}
+        for future in tqdm(as_completed(futures), total=len(tickers), desc="Analyzing assets"):
             result = future.result()
             if result:
-                promising_stocks.append(result)
+                promising_assets.append(result)
 
-    return sorted(promising_stocks, key=lambda x: x['potential_gain_percentage'], reverse=True)
+    return sorted(promising_assets, key=lambda x: x['potential_gain_percentage'], reverse=True)
 
-def display_stock_info(ticker):
+def display_asset_info(ticker, is_crypto=False):
     stock, history = get_stock_data(ticker, period="1y")
 
-    if stock is None or history is None or history.empty:
+    if history is None or history.empty:
         print(f"Unable to fetch data for {ticker}")
         return
 
-    info = stock.info
     current_price = history['Close'].iloc[-1]
+
+    asset_type = "Cryptocurrency" if is_crypto else "Stock"
 
     data = [
         ["Current Price", f"${current_price:.2f}"],
-        ["52 Week High", f"${info.get('fiftyTwoWeekHigh', 'N/A')}"],
-        ["52 Week Low", f"${info.get('fiftyTwoWeekLow', 'N/A')}"],
-        ["Market Cap", f"${info.get('marketCap', 0) / 1e9:.2f}B"],
-        ["P/E Ratio", f"{info.get('trailingPE', 'N/A')}"],
-        ["Dividend Yield", f"{info.get('dividendYield', 0) * 100:.2f}%"],
+        ["52 Week High", f"${history['Close'].max():.2f}"],
+        ["52 Week Low", f"${history['Close'].min():.2f}"],
     ]
 
-    print(f"\nStock Information for {ticker}:")
+    if stock is not None:
+        info = stock.info
+        data.extend([
+            ["Market Cap", f"${info.get('marketCap', 0) / 1e9:.2f}B"],
+            ["Volume", f"{info.get('volume', 'N/A')}"],
+        ])
+        if not is_crypto:
+            data.extend([
+                ["P/E Ratio", f"{info.get('trailingPE', 'N/A')}"],
+                ["Dividend Yield", f"{info.get('dividendYield', 0) * 100:.2f}%"],
+            ])
+
+    print(f"\n{asset_type} Information for {ticker}:")
     print(tabulate(data, headers=["Metric", "Value"], tablefmt="grid"))
 
     avg_weekly_change = analyze_weekly_change(history)
@@ -155,7 +207,7 @@ def display_stock_info(ticker):
     print("\nLast Week's Performance:")
     print(tabulate(weekly_data, headers=["Metric", "Value"], tablefmt="grid"))
 
-    buy_price, sell_price = get_recommendations(history, avg_weekly_change)
+    buy_price, sell_price = get_recommendations(history, avg_weekly_change, is_crypto)
 
     recommendation_data = [
         ["Recommended Buy Price", f"${buy_price:.2f}"],
@@ -167,51 +219,61 @@ def display_stock_info(ticker):
 
 def main():
     while True:
-        print("\nStock Analysis Tool")
+        print("\nStock and Cryptocurrency Analysis Tool")
         print("1. Analyze a single stock")
-        print("2. Search for promising stocks")
-        print("3. Exit")
+        print("2. Analyze a single cryptocurrency")
+        print("3. Search for promising stocks")
+        print("4. Search for promising cryptocurrencies")
+        print("5. Exit")
 
-        choice = input("Enter your choice (1-3): ").strip()
+        choice = input("Enter your choice (1-5): ").strip()
 
-        if choice == '1':
-            ticker = input("Enter the stock ticker symbol: ").strip().upper()
-            display_stock_info(ticker)
+        if choice in ['1', '2']:
+            ticker = input("Enter the ticker symbol: ").strip().upper()
+            if choice == '2':
+                ticker = f"{ticker}-USD"
+            display_asset_info(ticker, is_crypto=(choice == '2'))
 
-        elif choice == '2':
+        elif choice in ['3', '4']:
             while True:
                 try:
-                    num_stocks = int(input("Enter the number of stocks to search and analyze (recommended: 100 to 1000): "))
-                    if num_stocks > 0:
+                    num_assets = int(input("Enter the number of assets to search and analyze (recommended: 100 to 1000): "))
+                    if num_assets > 0:
                         break
                     else:
                         print("Please enter a positive number.")
                 except ValueError:
                     print("Please enter a valid integer.")
 
-            print(f"Fetching {num_stocks} stock tickers...")
-            tickers_to_analyze = get_tickers(num_stocks)
+            is_crypto = (choice == '4')
+            asset_type = "cryptocurrencies" if is_crypto else "stocks"
+            print(f"Fetching {num_assets} {asset_type} tickers...")
+            
+            if is_crypto:
+                tickers_to_analyze = get_crypto_tickers(num_assets)
+            else:
+                tickers_to_analyze = get_tickers(num_assets)
 
             if not tickers_to_analyze:
-                print("No tickers found. Please try again later.")
+                print(f"No {asset_type} tickers found. Please try again later.")
                 continue
 
             print(f"Retrieved {len(tickers_to_analyze)} tickers.")
 
             start_time = time.time()
-            promising_stocks = find_promising_stocks(tickers_to_analyze)
+            promising_assets = find_promising_assets(tickers_to_analyze, is_crypto=is_crypto)
             end_time = time.time()
 
             print(f"\nAnalysis completed in {end_time - start_time:.2f} seconds.")
-            print(f"Found {len(promising_stocks)} promising stocks.")
+            print(f"Found {len(promising_assets)} promising {asset_type}.")
 
-            if not promising_stocks:
-                print("No promising stocks found based on the current criteria.")
+            if not promising_assets:
+                print(f"No promising {asset_type} found based on the current criteria.")
                 continue
 
             while True:
                 try:
-                    top_n = int(input("Enter the number of top stocks to display: "))
+                    top_n = int(input("Enter the number of top assets to display: "))
                     if top_n > 0:
                         break
                     else:
@@ -219,21 +281,21 @@ def main():
                 except ValueError:
                     print("Please enter a valid integer.")
 
-            print(f"\nTop {min(top_n, len(promising_stocks))} Promising Stocks:")
-            for i, stock in enumerate(promising_stocks[:top_n], 1):
-                print(f"{i}. {stock['ticker']}:")
-                print(f"   Current Price: ${stock['current_price']:.2f}")
-                print(f"   RSI: {stock['rsi']:.2f}")
-                print(f"   Recommended Buy Price: ${stock['buy_price']:.2f}")
-                print(f"   Recommended Sell Price: ${stock['sell_price']:.2f}")
-                print(f"   Potential Gain (%): {stock['potential_gain_percentage']:.2f} (${stock['potential_gain_dollars']:.2f})\n")
+            print(f"\nTop {min(top_n, len(promising_assets))} Promising {asset_type.capitalize()}:")
+            for i, asset in enumerate(promising_assets[:top_n], 1):
+                print(f"{i}. {asset['ticker']}:")
+                print(f"   Current Price: ${asset['current_price']:.2f}")
+                print(f"   RSI: {asset['rsi']:.2f}")
+                print(f"   Recommended Buy Price: ${asset['buy_price']:.2f}")
+                print(f"   Recommended Sell Price: ${asset['sell_price']:.2f}")
+                print(f"   Potential Gain (%): {asset['potential_gain_percentage']:.2f} (${asset['potential_gain_dollars']:.2f})\n")
 
-        elif choice == '3':
-            print("Thank you for using the Stock Analysis Tool. Goodbye!")
+        elif choice == '5':
+            print("Thank you for using the Stock and Cryptocurrency Analysis Tool. Goodbye!")
             break
 
         else:
-            print("Invalid choice. Please enter 1, 2, or 3.")
+            print("Invalid choice. Please enter 1, 2, 3, 4, or 5.")
 
 if __name__ == "__main__":
     main()
