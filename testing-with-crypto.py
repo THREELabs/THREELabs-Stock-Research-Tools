@@ -9,14 +9,14 @@ import random
 import requests
 from tabulate import tabulate
 
-def get_tickers(num_stocks, crypto=False):
+def get_tickers(num_stocks, crypto=False, extended_history=False):
     if crypto:
         base_url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=true"
         headers = {"Accept": "application/json"}
     else:
         base_url = "https://api.nasdaq.com/api/screener/stocks?tableonly=true&limit=7754&download=true"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.3takan/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
 
     try:
@@ -42,12 +42,12 @@ def get_tickers(num_stocks, crypto=False):
         print(f"Error fetching tickers: {str(e)}")
         return []
 
-def get_stock_data(ticker, period="3mo"):
+def get_stock_data(ticker, period="3mo", extended_history=False):
     try:
         if ticker.isupper():
-            data = yf.Ticker(ticker).history(period=period)
+            data = yf.Ticker(ticker).history(period=period if not extended_history else "max")
         else:
-            data = yf.Ticker(f"crypto/{ticker}").history(period=period)
+            data = yf.Ticker(f"crypto/{ticker}").history(period=period if not extended_history else "max")
 
         if data.empty:
             print(f"Warning: No data available for {ticker} in the specified period.")
@@ -102,8 +102,8 @@ def find_repetitive_dips(history, threshold=10):
 
     return repetitive_dips
 
-def analyze_stock(ticker, drop_threshold=10):
-    ticker, history = get_stock_data(ticker)
+def analyze_stock(ticker, drop_threshold=10, extended_history=False):
+    ticker, history = get_stock_data(ticker, extended_history=extended_history)
     if ticker is None or history is None or history.empty or len(history) < 20:
         return None
 
@@ -128,10 +128,10 @@ def analyze_stock(ticker, drop_threshold=10):
 
     return None
 
-def find_promising_stocks(tickers, crypto=False, max_workers=10, drop_threshold=10):
+def find_promising_stocks(tickers, crypto=False, max_workers=10, drop_threshold=10, extended_history=False):
     promising_stocks = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(analyze_stock, ticker, drop_threshold): ticker for ticker in tickers}
+        futures = {executor.submit(analyze_stock, ticker, drop_threshold, extended_history): ticker for ticker in tickers}
         for future in tqdm(as_completed(futures), total=len(tickers), desc="Analyzing stocks"):
             result = future.result()
             if result:
@@ -281,9 +281,9 @@ def main():
             search_type = input("Enter 'stocks' or 'crypto': ").strip().lower()
 
             if search_type == 'stocks':
-                tickers_to_analyze = get_tickers(num_stocks)
+                tickers_to_analyze = get_tickers(num_stocks, crypto=False, extended_history=True)
             elif search_type == 'crypto':
-                tickers_to_analyze = get_tickers(num_stocks, crypto=True)
+                tickers_to_analyze = get_tickers(num_stocks, crypto=True, extended_history=True)
             else:
                 print("Invalid choice. Please enter 'stocks' or 'crypto'.")
                 continue
@@ -295,7 +295,7 @@ def main():
             print(f"Retrieved {len(tickers_to_analyze)} tickers.")
 
             start_time = time.time()
-            stocks_with_dips = find_promising_stocks(tickers_to_analyze, crypto=search_type == 'crypto', drop_threshold=drop_threshold)
+            stocks_with_dips = find_promising_stocks(tickers_to_analyze, crypto=search_type == 'crypto', drop_threshold=drop_threshold, extended_history=True)
             end_time = time.time()
 
             print(f"\nSearch completed in {end_time - start_time:.2f} seconds.")
