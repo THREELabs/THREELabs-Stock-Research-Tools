@@ -1,4 +1,4 @@
-#pip install pandas tqdm tabulate requests matplotlib
+!pip install pandas tqdm tabulate requests matplotlib
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -44,10 +44,13 @@ def get_tickers(num_stocks, crypto=False, extended_history=False):
 
 def get_stock_data(ticker, period="3mo", extended_history=False):
     try:
-        if ticker.isupper():
-            data = yf.Ticker(ticker).history(period=period if not extended_history else "max")
+        if extended_history:
+            data = yf.Ticker(ticker).history(period="max")
         else:
-            data = yf.Ticker(f"crypto/{ticker}").history(period=period if not extended_history else "max")
+            if ticker.isupper():
+                data = yf.Ticker(ticker).history(period=period)
+            else:
+                data = yf.Ticker(f"crypto/{ticker}").history(period=period)
 
         if data.empty:
             print(f"Warning: No data available for {ticker} in the specified period.")
@@ -81,26 +84,39 @@ def get_recommendations(history, avg_weekly_change):
 
     return buy_price, sell_price
 
-def find_repetitive_dips(history, threshold=10):
-    close_prices = history['Close']
-    repetitive_dips = []
-    dip_found = False
+def find_repetitive_dips(ticker, threshold=10, extended_history=False):
+    try:
+        if extended_history:
+            data = yf.Ticker(ticker).history(period="max")
+        else:
+            data = yf.Ticker(f"crypto/{ticker}").history(period="3mo")
 
-    for i in range(len(close_prices) - 1):
-        price_change = (close_prices[i + 1] / close_prices[i] - 1) * 100
-        if price_change < -threshold:  # Price dropped by more than the threshold
-            if not dip_found:
-                dip_start_index = i
-            dip_found = True
-        elif price_change > 0:  # Price started going up
-            if dip_found:
-                dip_end_index = i
-                dip_duration = dip_end_index - dip_start_index
-                if dip_duration >= 2:  # Ensure the dip lasted for at least 2 periods
-                    repetitive_dips.append((dip_start_index, dip_end_index))
-                dip_found = False
+        if data.empty:
+            print(f"Warning: No data available for {ticker} in the specified period.")
+            return []
 
-    return repetitive_dips
+        close_prices = data['Close']
+        repetitive_dips = []
+        dip_found = False
+
+        for i in range(len(close_prices) - 1):
+            price_change = (close_prices[i + 1] / close_prices[i] - 1) * 100
+            if price_change < -threshold:  # Price dropped by more than the threshold
+                if not dip_found:
+                    dip_start_index = i
+                dip_found = True
+            elif price_change > 0:  # Price started going up
+                if dip_found:
+                    dip_end_index = i
+                    dip_duration = dip_end_index - dip_start_index
+                    if dip_duration >= 2:  # Ensure the dip lasted for at least 2 periods
+                        repetitive_dips.append((dip_start_index, dip_end_index))
+                    dip_found = False
+
+        return repetitive_dips
+    except Exception as e:
+        print(f"Error processing data for {ticker}: {str(e)}")
+        return []
 
 def analyze_stock(ticker, drop_threshold=10, extended_history=False):
     ticker, history = get_stock_data(ticker, extended_history=extended_history)
@@ -116,7 +132,7 @@ def analyze_stock(ticker, drop_threshold=10, extended_history=False):
     sma_50 = history['SMA_50'].iloc[-1]
     sma_200 = history['SMA_200'].iloc[-1]
 
-    repetitive_dips = find_repetitive_dips(history, threshold=drop_threshold)
+    repetitive_dips = find_repetitive_dips(ticker, threshold=drop_threshold, extended_history=extended_history)
 
     if repetitive_dips:
         return {
