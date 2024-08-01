@@ -1,3 +1,6 @@
+#checking for crypto that are dipping 10% for 3 weeks in a row
+#libaries required !pip install yfinance pandas requests
+
 import yfinance as yf
 from datetime import datetime, timedelta
 import pandas as pd
@@ -5,7 +8,7 @@ import requests
 
 # Configurable Parameters
 ANALYSIS_TYPE = 'both'  # Options: 'crypto', 'stocks', 'both'
-FLUCTUATION_THRESHOLD = 10  # Percentage
+FLUCTUATION_THRESHOLD = 2  # Percentage
 WEEKS_TO_CHECK = 3
 MAX_INSTRUMENTS_TO_ANALYZE = 100  # Set to None for no limit
 VERBOSE = True  # Set to False for less detailed output
