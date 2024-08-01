@@ -62,14 +62,14 @@ def analyze_weekly_change(history):
 
 def get_recommendations(history, avg_weekly_change):
     current_price = history['Close'].iloc[-1]
-    
+
     # Calculate buy price: Use a larger discount for negative weekly changes
     discount = max(0.02, abs(avg_weekly_change)) if avg_weekly_change < 0 else 0.02
     buy_price = current_price * (1 - discount)
-    
+
     # Calculate sell price: Ensure it's always higher than the current price
     sell_price = current_price * (1 + max(0.02, avg_weekly_change))
-    
+
     return buy_price, sell_price
 
 def analyze_stock(ticker):
