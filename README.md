@@ -1,4 +1,4 @@
-# Stock Analysis Tool
+# Stock Analysis Tools
 
 This Python program is a comprehensive stock analysis tool that provides users with the ability to analyze individual stocks and search for promising investment opportunities across a large number of stocks. The tool leverages financial data from Yahoo Finance and the NASDAQ API to perform various analyses and provide investment recommendations.
 
