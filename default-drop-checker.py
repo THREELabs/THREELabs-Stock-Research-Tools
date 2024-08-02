@@ -8,16 +8,16 @@ import requests
 
 # Configurable Parameters
 ANALYSIS_TYPE = 'both'  # Options: 'crypto', 'stocks', 'both'
-FLUCTUATION_THRESHOLD = 2  # Percentage
+FLUCTUATION_THRESHOLD = 1  # Percentage
 WEEKS_TO_CHECK = 3
-MAX_INSTRUMENTS_TO_ANALYZE = 100  # Set to None for no limit
+MAX_INSTRUMENTS_TO_ANALYZE = 2000  # Set to None for no limit
 VERBOSE = True  # Set to False for less detailed output
 
 def get_crypto_symbols():
-    url = "https://finance.yahoo.com/cryptocurrencies/?count=100&offset=0"
+    url = "https://finance.yahoo.com/cryptocurrencies/?count=1000&offset=0"
     headers = {'User-Agent': 'Mozilla/5.0'}
     response = requests.get(url, headers=headers)
-    
+
     tables = pd.read_html(response.text)
     if tables:
         crypto_df = tables[0]
@@ -62,7 +62,7 @@ def check_fluctuation(symbol):
 def analyze_instruments(instruments, instrument_type):
     print(f"\nAnalyzing {instrument_type}...")
     print(f"Checking for fluctuations of {FLUCTUATION_THRESHOLD}% or more every week for the last {WEEKS_TO_CHECK} weeks.")
-    
+
     fluctuating_instruments = []
 
     for i, instrument in enumerate(instruments, 1):
@@ -76,7 +76,7 @@ def analyze_instruments(instruments, instrument_type):
     print(f"\n\nSummary for {instrument_type}:")
     print(f"Total {instrument_type} analyzed: {len(instruments)}")
     print(f"{instrument_type.capitalize()} with significant fluctuations: {len(fluctuating_instruments)}")
-    
+
     if fluctuating_instruments:
         print(f"\nList of {instrument_type} with significant fluctuations:")
         for instrument in fluctuating_instruments:
