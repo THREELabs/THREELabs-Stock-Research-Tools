@@ -2,15 +2,17 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 import requests
+import io
 
 # Configurable Parameters
-ANALYSIS_TYPE = 'both'  # Choose to analyze 'crypto', 'stocks', or 'both'
+ANALYSIS_TYPE = 'crypto'  # Choose to analyze 'crypto', 'stocks', or 'both'
 MIN_FLUCTUATION = 2  # Minimum percentage fluctuation to consider
 MAX_FLUCTUATION = 10  # Maximum percentage fluctuation to consider
 CONSECUTIVE_WEEKS = 3  # Number of consecutive weeks to check for fluctuation pattern
 LOOKBACK_WEEKS = 12  # Number of weeks to look back for analysis
-MAX_INSTRUMENTS_TO_ANALYZE = 2000  # Maximum number of instruments to analyze. Set to None for no limit.
+MAX_INSTRUMENTS_TO_ANALYZE = 20  # Maximum number of instruments to analyze. Set to None for no limit.
 VERBOSE = True  # Set to True for detailed output during analysis
+MANUAL_SYMBOLS = ['AAPL', 'GOOGL', 'BTC-USD']  # Add your manual stock or crypto symbols here
 
 def get_crypto_symbols():
     """
@@ -38,30 +40,38 @@ def get_crypto_symbols():
 
 def get_stock_symbols():
     """
-    Fetch stock symbols from major indices using yfinance.
+    Fetch stock symbols from predefined lists and a comprehensive CSV file.
     Returns an empty list on failure.
     """
-    indices = {
-        "^GSPC": "S&P 500",
-        "^DJI": "Dow Jones",
-        "^IXIC": "NASDAQ",
-        "^RUT": "Russell 2000"
-    }
     symbols = set()
-    for index, name in indices.items():
-        try:
-            index_data = yf.Ticker(index)
-            components = index_data.info.get('components', [])
-            if not components:
-                print(f"No components found for {name}. Trying to fetch top holdings...")
-                holdings = index_data.info.get('holdings', [])
-                components = [holding.get('symbol') for holding in holdings if holding.get('symbol')]
-            symbols.update(components)
-            if VERBOSE:
-                print(f"Fetched {len(components)} symbols from {name}")
-        except Exception as e:
-            if VERBOSE:
-                print(f"Error fetching symbols for {name}: {str(e)}")
+
+    # Predefined lists of major indices
+    sp500 = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB', 'TSLA', 'BRK.B', 'JPM', 'JNJ', 'V', 'PG', 'UNH', 'HD', 'MA', 'NVDA']
+    dow30 = ['AAPL', 'AMGN', 'AXP', 'BA', 'CAT', 'CRM', 'CSCO', 'CVX', 'DIS', 'DOW', 'GS', 'HD', 'HON', 'IBM', 'INTC']
+    nasdaq100 = ['AAPL', 'MSFT', 'AMZN', 'TSLA', 'GOOGL', 'GOOG', 'FB', 'NVDA', 'PYPL', 'ADBE', 'NFLX', 'CMCSA', 'CSCO', 'PEP', 'AVGO']
+
+    symbols.update(sp500)
+    symbols.update(dow30)
+    symbols.update(nasdaq100)
+
+    if VERBOSE:
+        print(f"Fetched {len(symbols)} symbols from predefined lists")
+
+    # Fetch additional symbols from a comprehensive CSV file
+    try:
+        url = "https://raw.githubusercontent.com/rreichel3/US-Stock-Symbols/main/all/all_tickers.txt"
+        response = requests.get(url)
+        response.raise_for_status()
+        csv_data = io.StringIO(response.text)
+        df = pd.read_csv(csv_data, header=None, names=['Symbol'])
+        additional_symbols = df['Symbol'].tolist()
+        symbols.update(additional_symbols)
+        if VERBOSE:
+            print(f"Fetched {len(additional_symbols)} additional symbols from CSV")
+    except Exception as e:
+        if VERBOSE:
+            print(f"Error fetching additional symbols: {str(e)}")
+
     return list(symbols)[:MAX_INSTRUMENTS_TO_ANALYZE]
 
 def get_financial_data(symbol, start_date, end_date):
@@ -120,16 +130,17 @@ def analyze_instrument(symbol):
         return None
 
     fluctuations = calculate_weekly_fluctuation(data)
-    if check_consecutive_fluctuations(fluctuations):
-        last_close = data['Close'].iloc[-1]
-        last_fluctuation = fluctuations.iloc[-1]
-        return {
-            'symbol': symbol,
-            'last_close': last_close,
-            'last_fluctuation': last_fluctuation,
-            'average_fluctuation': fluctuations.mean()
-        }
-    return None
+    last_close = data['Close'].iloc[-1]
+    last_fluctuation = fluctuations.iloc[-1]
+    average_fluctuation = fluctuations.mean()
+    
+    return {
+        'symbol': symbol,
+        'last_close': last_close,
+        'last_fluctuation': last_fluctuation,
+        'average_fluctuation': average_fluctuation,
+        'meets_criteria': check_consecutive_fluctuations(fluctuations)
+    }
 
 def analyze_instruments(instruments, instrument_type):
     """
@@ -151,16 +162,17 @@ def analyze_instruments(instruments, instrument_type):
 
     print(f"\n\nSummary for {instrument_type.capitalize()}:")
     print(f"Total {instrument_type} analyzed: {len(instruments)}")
-    print(f"{instrument_type.capitalize()} meeting criteria: {len(results)}")
+    print(f"{instrument_type.capitalize()} meeting criteria: {len([r for r in results if r['meets_criteria']])}")
 
     if results:
         print(f"\nList of {instrument_type} meeting criteria:")
         for result in results:
-            print(f"Symbol: {result['symbol']}")
-            print(f"  Last Close: ${result['last_close']:.2f}")
-            print(f"  Last Week's Fluctuation: {result['last_fluctuation']:.2f}%")
-            print(f"  Average Weekly Fluctuation: {result['average_fluctuation']:.2f}%")
-            print()
+            if result['meets_criteria']:
+                print(f"Symbol: {result['symbol']}")
+                print(f"  Last Close: ${result['last_close']:.2f}")
+                print(f"  Last Week's Fluctuation: {result['last_fluctuation']:.2f}%")
+                print(f"  Average Weekly Fluctuation: {result['average_fluctuation']:.2f}%")
+                print()
     else:
         print(f"\nNo {instrument_type} met the fluctuation criteria.")
 
@@ -171,6 +183,12 @@ def main():
     Main function to run the analysis based on the configured parameters.
     """
     all_results = []
+
+    # Analyze manual symbols first
+    if MANUAL_SYMBOLS:
+        print("\nAnalyzing manually added symbols...")
+        manual_results = analyze_instruments(MANUAL_SYMBOLS, "manual symbols")
+        all_results.extend(manual_results)
 
     if ANALYSIS_TYPE in ['crypto', 'both']:
         crypto_list = get_crypto_symbols()
@@ -196,6 +214,7 @@ def main():
             print(f"  Last Close: ${result['last_close']:.2f}")
             print(f"  Last Week's Fluctuation: {result['last_fluctuation']:.2f}%")
             print(f"  Average Weekly Fluctuation: {result['average_fluctuation']:.2f}%")
+            print(f"  Meets Criteria: {'Yes' if result['meets_criteria'] else 'No'}")
             print()
     else:
         print("No results found. Please check your internet connection and try again.")
