@@ -132,13 +132,43 @@ class AnalysisThread(QThread):
         last_fluctuation = fluctuations.iloc[-1]
         average_fluctuation = fluctuations.mean()
         
+        # Calculate the consistency of fluctuations
+        consistency = self.calculate_consistency(fluctuations)
+        
+        # Calculate the Consistency Ratio
+        consistency_ratio = consistency / average_fluctuation if average_fluctuation != 0 else float('inf')
+        
+        # Determine if the stock is "HOT"
+        is_hot = self.is_stock_hot(fluctuations, consistency_ratio)
+        
         return {
             'symbol': symbol,
             'last_close': last_close,
             'last_fluctuation': last_fluctuation,
             'average_fluctuation': average_fluctuation,
+            'consistency': consistency,
+            'consistency_ratio': consistency_ratio,
+            'is_hot': is_hot,
             'meets_criteria': self.check_consecutive_fluctuations(fluctuations)
         }
+
+    def calculate_consistency(self, fluctuations):
+        # Calculate the standard deviation of fluctuations
+        return fluctuations.std()
+
+    def is_stock_hot(self, fluctuations, consistency_ratio):
+        # Define criteria for a "HOT" stock
+        avg_fluctuation = fluctuations.mean()
+        recent_fluctuations = fluctuations[-4:]  # Last 4 weeks
+        
+        is_hot = (
+            avg_fluctuation >= self.params['MIN_FLUCTUATION'] and
+            avg_fluctuation <= self.params['MAX_FLUCTUATION'] and
+            consistency_ratio < 0.5 and  # Consistency Ratio less than 0.5 indicates good consistency
+            all(self.params['MIN_FLUCTUATION'] <= f <= self.params['MAX_FLUCTUATION'] for f in recent_fluctuations)
+        )
+        
+        return is_hot
 
     def analyze_instruments(self, instruments, instrument_type):
         results = []
@@ -197,7 +227,7 @@ class FinancialAnalysisGUI(QMainWindow):
 
         self.lookback_weeks = QSpinBox()
         self.lookback_weeks.setRange(1, 52)
-        self.lookback_weeks.setValue(12)
+        self.lookback_weeks.setValue(16)
         right_column.addWidget(QLabel("Lookback Weeks:"))
         right_column.addWidget(self.lookback_weeks)
 
@@ -262,18 +292,24 @@ class FinancialAnalysisGUI(QMainWindow):
         self.output_text.append("\nAnalysis Results:")
         
         meeting_criteria = [r for r in results if r['meets_criteria']]
+        hot_stocks = [r for r in meeting_criteria if r['is_hot']]
         
         self.output_text.append(f"\nTotal instruments analyzed: {len(results)}")
         self.output_text.append(f"Instruments meeting criteria: {len(meeting_criteria)}")
+        self.output_text.append(f"HOT stocks identified: {len(hot_stocks)}")
         
         if meeting_criteria:
             self.output_text.append("\nTop opportunities based on recent weekly fluctuations:")
-            sorted_results = sorted(meeting_criteria, key=lambda x: x['last_fluctuation'], reverse=True)
+            sorted_results = sorted(meeting_criteria, key=lambda x: (x['is_hot'], x['last_fluctuation']), reverse=True)
             for result in sorted_results[:10]:  # Display top 10 opportunities
-                self.output_text.append(f"\nSymbol: {result['symbol']}")
+                hot_label = "🔥 HOT!" if result['is_hot'] else ""
+                self.output_text.append(f"\nSymbol: {result['symbol']} {hot_label}")
                 self.output_text.append(f"  Last Close: ${result['last_close']:.2f}")
                 self.output_text.append(f"  Last Week's Fluctuation: {result['last_fluctuation']:.2f}%")
                 self.output_text.append(f"  Average Weekly Fluctuation: {result['average_fluctuation']:.2f}%")
+                self.output_text.append(f"  Consistency (Std Dev): {result['consistency']:.2f}")
+                self.output_text.append(f"  Consistency Ratio: {result['consistency_ratio']:.2f}")
+                self.output_text.append(f"  Interpretation: {'Good' if result['consistency_ratio'] < 0.5 else 'Less consistent'}")
         else:
             self.output_text.append("\nNo instruments met the fluctuation criteria.")
 
