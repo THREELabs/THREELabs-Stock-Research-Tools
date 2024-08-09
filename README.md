@@ -1,75 +1,73 @@
-# Stock Analysis Tool
+# Financial Analysis Tool (drop-checker-GUI)
 
-## Overview
+This Python program is a comprehensive financial analysis tool that helps identify potentially promising investment opportunities in both cryptocurrencies and stocks. It analyzes price fluctuations over time to find assets that meet specific criteria, potentially indicating favorable market conditions.
 
-The Stock Analysis Tool is a Python-based application designed to help investors and traders make informed decisions about stock investments. This tool offers two primary functionalities:
+## Features
 
-1. **Single Stock Analysis**: Retrieve detailed information about a specific stock, including current price, 52-week high/low, market cap, P/E ratio, dividend yield, and personalized buy/sell recommendations.
+- Analyzes both cryptocurrencies and stocks
+- Fetches up-to-date lists of cryptocurrencies and S&P 500 stocks
+- Allows for manual addition of specific symbols to analyze
+- Configurable parameters for analysis criteria
+- User-friendly GUI for easy configuration and result display
+- Multithreaded analysis for improved performance
+- Detailed output of top opportunities based on recent weekly fluctuations
 
-2. **Promising Stock Search**: Analyze a large number of stocks concurrently to identify potentially undervalued opportunities based on technical indicators and potential gains.
+## How It Works
 
-With an intuitive command-line interface, users can easily navigate between these functions and customize their stock analysis experience.
+1. The tool fetches lists of cryptocurrencies and stocks from online sources.
+2. It then analyzes the price history of each asset over a specified period.
+3. The analysis looks for patterns of consistent price fluctuations within a defined range.
+4. Assets that meet the criteria are flagged as potential opportunities.
+5. Results are sorted and displayed, with the most promising opportunities highlighted.
 
-## Key Features
+## Requirements
 
-- Real-time stock data retrieval using the yfinance library
-- Calculation of technical indicators such as RSI (Relative Strength Index) and SMAs (Simple Moving Averages)
-- Weekly change analysis and automated buy/sell recommendations
-- Efficient multi-threaded analysis for scanning multiple stocks simultaneously
-- User-friendly data presentation using tabular formats
+- Python 3.x
+- Required libraries: yfinance, pandas, requests, tkinter
 
-## Technical Details
+## Installation
 
-### Architecture and Data Flow
+1. Clone this repository:
+   ```
+   git clone https://github.com/yourusername/financial-analysis-tool.git
+   ```
+2. Install the required libraries:
+   ```
+   pip install yfinance pandas requests
+   ```
 
-1. **Data Retrieval**: 
-   - Stock tickers are fetched from the NASDAQ API using the `requests` library.
-   - Historical stock data is obtained through the `yfinance` library.
+## Usage
 
-2. **Data Processing**:
-   - Technical indicators (RSI, SMA) are calculated using custom functions and pandas operations.
-   - Weekly changes are analyzed using resampling and percentage change calculations.
+1. Run the script:
+   ```
+   python financial_analysis_tool.py
+   ```
+2. Use the GUI to configure analysis parameters:
+   - Select analysis type (crypto, stocks, or both)
+   - Set minimum and maximum fluctuation percentages
+   - Specify the number of consecutive weeks for pattern recognition
+   - Set the lookback period and maximum number of instruments to analyze
+   - Add any manual symbols you want to include in the analysis
+3. Click "Run Analysis" to start the process
+4. View the results in the "Results" tab of the GUI
 
-3. **Analysis**:
-   - Single stock analysis involves calculating various metrics and generating buy/sell recommendations.
-   - Multi-stock analysis uses `ThreadPoolExecutor` for concurrent processing of multiple tickers.
+## Configuration Options
 
-4. **User Interface**:
-   - Implemented as a command-line interface using a while loop for continuous operation.
-   - User input is validated to ensure robust operation.
+- **Analysis Type**: Choose to analyze cryptocurrencies, stocks, or both
+- **Min/Max Fluctuation**: Set the range of weekly price fluctuations to look for
+- **Consecutive Weeks**: Number of weeks the fluctuation pattern should persist
+- **Lookback Weeks**: How far back to analyze (default is 13 weeks, about 3 months)
+- **Max Instruments**: Limit the number of instruments to analyze for performance
+- **Manual Symbols**: Add specific stock or crypto symbols to include in the analysis
 
-### Key Components
+## Disclaimer
 
-1. `get_tickers(num_stocks)`: Fetches and randomizes stock tickers from NASDAQ API.
-2. `get_stock_data(ticker, period)`: Retrieves historical stock data using yfinance.
-3. `calculate_rsi(data, window)`: Computes Relative Strength Index.
-4. `analyze_weekly_change(history)`: Calculates average weekly price changes.
-5. `get_recommendations(history, avg_weekly_change)`: Generates buy/sell price recommendations.
-6. `analyze_stock(ticker)`: Performs comprehensive single-stock analysis.
-7. `find_promising_stocks(tickers, max_workers)`: Concurrently analyzes multiple stocks to find promising opportunities.
-8. `display_stock_info(ticker)`: Presents detailed information for a single stock.
+This tool is for informational purposes only and should not be considered financial advice. Always do your own research and consult with a qualified financial advisor before making investment decisions.
 
-### Libraries and Dependencies
+## Contributing
 
-- `yfinance`: For fetching real-time and historical stock data
-- `pandas`: For data manipulation and analysis
-- `numpy`: For numerical operations
-- `concurrent.futures`: For implementing multi-threading
-- `tqdm`: For progress bar visualization
-- `requests`: For API calls to fetch stock tickers
-- `tabulate`: For formatting and displaying data in tables
+Contributions, issues, and feature requests are welcome. Feel free to check [issues page](https://github.com/yourusername/financial-analysis-tool/issues) if you want to contribute.
 
-### Performance Considerations
+## License
 
-- Multi-threading is employed to analyze multiple stocks concurrently, significantly reducing processing time for large datasets.
-- The tool uses efficient data structures and pandas operations to handle and analyze large volumes of stock data.
-
-### Extensibility
-
-The modular design of the tool allows for easy addition of new analysis techniques or data sources. Future enhancements could include:
-
-- Integration with additional data sources for more comprehensive analysis
-- Implementation of machine learning models for predictive analysis
-- Development of a graphical user interface (GUI) for improved user experience
-
-This Stock Analysis Tool provides a robust foundation for stock market analysis, combining real-time data retrieval, technical analysis, and efficient processing to assist in making informed investment decisions.
+[MIT](https://choosealicense.com/licenses/mit/)
