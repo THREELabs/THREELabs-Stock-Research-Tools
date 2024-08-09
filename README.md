@@ -1,6 +1,6 @@
-# Financial Analysis Tool (drop-checker-GUI)
+# Financial Analysis Tool (drop-checker-GUI / drop-checker-CMD )
 
-This Python program is a comprehensive financial analysis tool that helps identify potentially promising investment opportunities in both cryptocurrencies and stocks. It analyzes price fluctuations over time to find assets that meet specific criteria, potentially indicating favorable market conditions.
+This Python program is a comprehensive financial analysis tool that helps identify potentially promising investment opportunities in both cryptocurrencies and stocks. It analyzes price fluctuations over time to find assets that meet specific criteria, potentially indicating favorable market conditions. Command line and GUI versions may have some slight differences.
 
 ## Features
 
@@ -68,6 +68,3 @@ This tool is for informational purposes only and should not be considered financ
 
 Contributions, issues, and feature requests are welcome. Feel free to check [issues page](https://github.com/yourusername/financial-analysis-tool/issues) if you want to contribute.
 
-## License
-
-[MIT](https://choosealicense.com/licenses/mit/)
