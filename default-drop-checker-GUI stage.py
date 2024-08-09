@@ -1,322 +1,249 @@
-import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextEdit, QComboBox, QCheckBox, QSpinBox, QDoubleSpinBox
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 import requests
 import io
+import tkinter as tk
+from tkinter import ttk, scrolledtext, messagebox
+import threading
 
-class AnalysisThread(QThread):
-    update_progress = pyqtSignal(str)
-    analysis_complete = pyqtSignal(list)
+# Configurable Parameters
+ANALYSIS_TYPE = 'both'  # Choose to analyze 'crypto', 'stocks', or 'both'
+MIN_FLUCTUATION = 2  # Minimum percentage fluctuation to consider
+MAX_FLUCTUATION = 10  # Maximum percentage fluctuation to consider
+CONSECUTIVE_WEEKS = 3  # Number of consecutive weeks to check for fluctuation pattern
+LOOKBACK_WEEKS = 13  # Number of weeks to look back for analysis (approximately 3 months)
+MAX_INSTRUMENTS_TO_ANALYZE = 20  # Maximum number of instruments to analyze. Set to None for no limit.
+VERBOSE = True  # Set to True for detailed output during analysis
+MANUAL_SYMBOLS = ['AAPL', 'GOOGL', 'BTC-USD']  # Add your manual stock or crypto symbols here
 
-    def __init__(self, params):
-        super().__init__()
-        self.params = params
+def get_crypto_symbols():
+    url = "https://api.coingecko.com/api/v3/coins/markets"
+    params = {
+        "vs_currency": "usd",
+        "order": "market_cap_desc",
+        "per_page": 250,
+        "page": 1,
+        "sparkline": False
+    }
+    response = requests.get(url, params=params)
+    if response.status_code == 200:
+        data = response.json()
+        return [coin['symbol'].upper() + '-USD' for coin in data]
+    else:
+        print(f"Failed to fetch cryptocurrency list. Status code: {response.status_code}")
+        return []
 
-    def run(self):
-        self.update_progress.emit("Analysis started...")
-        
-        all_results = []
+def get_stock_symbols():
+    url = "https://pkgstore.datahub.io/core/s-and-p-500-companies/constituents_csv/data/64dd3e9582b936b0352fdd826ecd3c95/constituents_csv.csv"
+    response = requests.get(url)
+    if response.status_code == 200:
+        df = pd.read_csv(io.StringIO(response.content.decode('utf-8')))
+        return df['Symbol'].tolist()
+    else:
+        print(f"Failed to fetch stock list. Status code: {response.status_code}")
+        return []
 
-        if self.params['MANUAL_SYMBOLS']:
-            self.update_progress.emit("Analyzing manually added symbols...")
-            manual_results = self.analyze_instruments(self.params['MANUAL_SYMBOLS'], "manual symbols")
-            all_results.extend(manual_results)
-
-        if self.params['ANALYSIS_TYPE'] in ['crypto', 'both']:
-            crypto_list = self.get_crypto_symbols()
-            if crypto_list:
-                self.update_progress.emit("Analyzing cryptocurrencies...")
-                crypto_results = self.analyze_instruments(crypto_list, "cryptocurrencies")
-                all_results.extend(crypto_results)
-            else:
-                self.update_progress.emit("Failed to fetch cryptocurrency list.")
-
-        if self.params['ANALYSIS_TYPE'] in ['stocks', 'both']:
-            stock_list = self.get_stock_symbols()
-            if stock_list:
-                self.update_progress.emit("Analyzing stocks...")
-                stock_results = self.analyze_instruments(stock_list, "stocks")
-                all_results.extend(stock_results)
-            else:
-                self.update_progress.emit("Failed to fetch stock list.")
-
-        self.update_progress.emit("Analysis completed.")
-        self.analysis_complete.emit(all_results)
-
-    def get_crypto_symbols(self):
+def analyze_instruments(symbols, instrument_type):
+    results = []
+    for symbol in symbols[:MAX_INSTRUMENTS_TO_ANALYZE]:
         try:
-            url = "https://api.coingecko.com/api/v3/coins/markets"
-            params = {
-                "vs_currency": "usd",
-                "order": "market_cap_desc",
-                "per_page": 250,
-                "page": 1,
-                "sparkline": False
-            }
-            response = requests.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
-            symbols = [f"{coin['symbol'].upper()}-USD" for coin in data]
-            return symbols[:self.params['MAX_INSTRUMENTS_TO_ANALYZE']]
+            ticker = yf.Ticker(symbol)
+            
+            # Use '3mo' instead of '12wk' for broader compatibility
+            hist = ticker.history(period='3mo')
+            
+            if hist.empty:
+                if VERBOSE:
+                    print(f"No data available for {symbol}")
+                continue
+            
+            # Resample to weekly data
+            weekly_data = hist['Close'].resample('W').last()
+            
+            # Calculate returns and fluctuations
+            weekly_returns = weekly_data.pct_change()
+            weekly_fluctuations = weekly_returns.abs() * 100
+            
+            # Check if we have enough data points
+            if len(weekly_fluctuations) < CONSECUTIVE_WEEKS:
+                if VERBOSE:
+                    print(f"Not enough data points for {symbol}")
+                continue
+            
+            meets_criteria = False
+            for i in range(len(weekly_fluctuations) - CONSECUTIVE_WEEKS + 1):
+                if all(MIN_FLUCTUATION <= fluctuation <= MAX_FLUCTUATION for fluctuation in weekly_fluctuations[i:i+CONSECUTIVE_WEEKS]):
+                    meets_criteria = True
+                    break
+            
+            last_close = hist['Close'].iloc[-1]
+            last_fluctuation = weekly_fluctuations.iloc[-1]
+            average_fluctuation = weekly_fluctuations.mean()
+            
+            results.append({
+                'symbol': symbol,
+                'last_close': last_close,
+                'last_fluctuation': last_fluctuation,
+                'average_fluctuation': average_fluctuation,
+                'meets_criteria': meets_criteria
+            })
+            
+            if VERBOSE:
+                print(f"Analyzed {symbol}")
+        
         except Exception as e:
-            self.update_progress.emit(f"Error fetching crypto symbols: {str(e)}")
-            return []
+            if VERBOSE:
+                print(f"Error analyzing {symbol}: {str(e)}")
+    
+    return results
 
-    def get_stock_symbols(self):
-        symbols = set()
-        sp500 = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB', 'TSLA', 'BRK.B', 'JPM', 'JNJ', 'V', 'PG', 'UNH', 'HD', 'MA', 'NVDA']
-        dow30 = ['AAPL', 'AMGN', 'AXP', 'BA', 'CAT', 'CRM', 'CSCO', 'CVX', 'DIS', 'DOW', 'GS', 'HD', 'HON', 'IBM', 'INTC']
-        nasdaq100 = ['AAPL', 'MSFT', 'AMZN', 'TSLA', 'GOOGL', 'GOOG', 'FB', 'NVDA', 'PYPL', 'ADBE', 'NFLX', 'CMCSA', 'CSCO', 'PEP', 'AVGO']
+class FinancialAnalysisGUI:
+    def __init__(self, master):
+        self.master = master
+        master.title("Financial Analysis Tool")
+        master.geometry("800x600")
 
-        symbols.update(sp500)
-        symbols.update(dow30)
-        symbols.update(nasdaq100)
+        self.create_widgets()
 
-        try:
-            url = "https://raw.githubusercontent.com/rreichel3/US-Stock-Symbols/main/all/all_tickers.txt"
-            response = requests.get(url)
-            response.raise_for_status()
-            csv_data = io.StringIO(response.text)
-            df = pd.read_csv(csv_data, header=None, names=['Symbol'])
-            additional_symbols = df['Symbol'].tolist()
-            symbols.update(additional_symbols)
-        except Exception as e:
-            self.update_progress.emit(f"Error fetching additional symbols: {str(e)}")
+    def create_widgets(self):
+        # Create tabs
+        self.notebook = ttk.Notebook(self.master)
+        self.notebook.pack(expand=True, fill='both', padx=10, pady=10)
 
-        return list(symbols)[:self.params['MAX_INSTRUMENTS_TO_ANALYZE']]
+        # Configuration Tab
+        self.config_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.config_frame, text='Configuration')
 
-    def get_financial_data(self, symbol, start_date, end_date):
-        try:
-            data = yf.download(symbol, start=start_date, end=end_date)
-            if data.empty:
-                self.update_progress.emit(f"No data available for {symbol}")
-                return pd.DataFrame()
-            return data[['Open', 'High', 'Low', 'Close']]
-        except Exception as e:
-            self.update_progress.emit(f"Error fetching data for {symbol}: {str(e)}")
-            return pd.DataFrame()
+        # Analysis Type
+        ttk.Label(self.config_frame, text="Analysis Type:").grid(row=0, column=0, sticky='w', padx=5, pady=5)
+        self.analysis_type = tk.StringVar(value=ANALYSIS_TYPE)
+        ttk.Combobox(self.config_frame, textvariable=self.analysis_type, values=['crypto', 'stocks', 'both']).grid(row=0, column=1, sticky='w', padx=5, pady=5)
 
-    def calculate_weekly_fluctuation(self, data):
-        weekly_data = data.resample('W').agg({
-            'Open': 'first',
-            'High': 'max',
-            'Low': 'min',
-            'Close': 'last'
-        })
-        return ((weekly_data['High'] - weekly_data['Low']) / weekly_data['Open']) * 100
+        # Min Fluctuation
+        ttk.Label(self.config_frame, text="Min Fluctuation (%):").grid(row=1, column=0, sticky='w', padx=5, pady=5)
+        self.min_fluctuation = tk.StringVar(value=str(MIN_FLUCTUATION))
+        ttk.Entry(self.config_frame, textvariable=self.min_fluctuation).grid(row=1, column=1, sticky='w', padx=5, pady=5)
 
-    def check_consecutive_fluctuations(self, fluctuations):
-        count = 0
-        for fluctuation in fluctuations:
-            if self.params['MIN_FLUCTUATION'] <= fluctuation <= self.params['MAX_FLUCTUATION']:
-                count += 1
-                if count == self.params['CONSECUTIVE_WEEKS']:
-                    return True
-            else:
-                count = 0
-        return False
+        # Max Fluctuation
+        ttk.Label(self.config_frame, text="Max Fluctuation (%):").grid(row=2, column=0, sticky='w', padx=5, pady=5)
+        self.max_fluctuation = tk.StringVar(value=str(MAX_FLUCTUATION))
+        ttk.Entry(self.config_frame, textvariable=self.max_fluctuation).grid(row=2, column=1, sticky='w', padx=5, pady=5)
 
-    def analyze_instrument(self, symbol):
-        end_date = datetime.now()
-        start_date = end_date - timedelta(weeks=self.params['LOOKBACK_WEEKS'])
+        # Consecutive Weeks
+        ttk.Label(self.config_frame, text="Consecutive Weeks:").grid(row=3, column=0, sticky='w', padx=5, pady=5)
+        self.consecutive_weeks = tk.StringVar(value=str(CONSECUTIVE_WEEKS))
+        ttk.Entry(self.config_frame, textvariable=self.consecutive_weeks).grid(row=3, column=1, sticky='w', padx=5, pady=5)
 
-        data = self.get_financial_data(symbol, start_date, end_date)
-        if data.empty:
-            return None
+        # Lookback Weeks
+        ttk.Label(self.config_frame, text="Lookback Weeks:").grid(row=4, column=0, sticky='w', padx=5, pady=5)
+        self.lookback_weeks = tk.StringVar(value=str(LOOKBACK_WEEKS))
+        ttk.Entry(self.config_frame, textvariable=self.lookback_weeks).grid(row=4, column=1, sticky='w', padx=5, pady=5)
 
-        fluctuations = self.calculate_weekly_fluctuation(data)
-        last_close = data['Close'].iloc[-1]
-        last_fluctuation = fluctuations.iloc[-1]
-        average_fluctuation = fluctuations.mean()
-        
-        # Calculate the consistency of fluctuations
-        consistency = self.calculate_consistency(fluctuations)
-        
-        # Calculate the Consistency Ratio
-        consistency_ratio = consistency / average_fluctuation if average_fluctuation != 0 else float('inf')
-        
-        # Determine if the stock is "HOT"
-        is_hot = self.is_stock_hot(fluctuations, consistency_ratio)
-        
-        return {
-            'symbol': symbol,
-            'last_close': last_close,
-            'last_fluctuation': last_fluctuation,
-            'average_fluctuation': average_fluctuation,
-            'consistency': consistency,
-            'consistency_ratio': consistency_ratio,
-            'is_hot': is_hot,
-            'meets_criteria': self.check_consecutive_fluctuations(fluctuations)
-        }
+        # Max Instruments
+        ttk.Label(self.config_frame, text="Max Instruments:").grid(row=5, column=0, sticky='w', padx=5, pady=5)
+        self.max_instruments = tk.StringVar(value=str(MAX_INSTRUMENTS_TO_ANALYZE))
+        ttk.Entry(self.config_frame, textvariable=self.max_instruments).grid(row=5, column=1, sticky='w', padx=5, pady=5)
 
-    def calculate_consistency(self, fluctuations):
-        # Calculate the standard deviation of fluctuations
-        return fluctuations.std()
+        # Manual Symbols
+        ttk.Label(self.config_frame, text="Manual Symbols:").grid(row=6, column=0, sticky='w', padx=5, pady=5)
+        self.manual_symbols = tk.StringVar(value=','.join(MANUAL_SYMBOLS))
+        ttk.Entry(self.config_frame, textvariable=self.manual_symbols).grid(row=6, column=1, sticky='w', padx=5, pady=5)
 
-    def is_stock_hot(self, fluctuations, consistency_ratio):
-        # Define criteria for a "HOT" stock
-        avg_fluctuation = fluctuations.mean()
-        recent_fluctuations = fluctuations[-4:]  # Last 4 weeks
-        
-        is_hot = (
-            avg_fluctuation >= self.params['MIN_FLUCTUATION'] and
-            avg_fluctuation <= self.params['MAX_FLUCTUATION'] and
-            consistency_ratio < 0.5 and  # Consistency Ratio less than 0.5 indicates good consistency
-            all(self.params['MIN_FLUCTUATION'] <= f <= self.params['MAX_FLUCTUATION'] for f in recent_fluctuations)
-        )
-        
-        return is_hot
+        # Run Analysis Button
+        ttk.Button(self.config_frame, text="Run Analysis", command=self.run_analysis).grid(row=7, column=0, columnspan=2, pady=20)
 
-    def analyze_instruments(self, instruments, instrument_type):
-        results = []
-        for i, instrument in enumerate(instruments, 1):
-            result = self.analyze_instrument(instrument)
-            if result:
-                results.append(result)
-            if self.params['VERBOSE']:
-                self.update_progress.emit(f"Processed {i}/{len(instruments)} {instrument_type}")
-        return results
+        # Results Tab
+        self.results_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.results_frame, text='Results')
 
-class FinancialAnalysisGUI(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Financial Instrument Analysis")
-        self.setGeometry(100, 100, 800, 600)
+        self.results_text = scrolledtext.ScrolledText(self.results_frame, wrap=tk.WORD)
+        self.results_text.pack(expand=True, fill='both')
 
-        self.central_widget = QWidget()
-        self.setCentralWidget(self.central_widget)
-        self.layout = QVBoxLayout(self.central_widget)
+    def run_analysis(self):
+        # Update global variables with GUI values
+        global ANALYSIS_TYPE, MIN_FLUCTUATION, MAX_FLUCTUATION, CONSECUTIVE_WEEKS, LOOKBACK_WEEKS, MAX_INSTRUMENTS_TO_ANALYZE, MANUAL_SYMBOLS
 
-        self.create_input_section()
-        self.create_output_section()
+        ANALYSIS_TYPE = self.analysis_type.get()
+        MIN_FLUCTUATION = float(self.min_fluctuation.get())
+        MAX_FLUCTUATION = float(self.max_fluctuation.get())
+        CONSECUTIVE_WEEKS = int(self.consecutive_weeks.get())
+        LOOKBACK_WEEKS = int(self.lookback_weeks.get())
+        MAX_INSTRUMENTS_TO_ANALYZE = int(self.max_instruments.get())
+        MANUAL_SYMBOLS = [symbol.strip() for symbol in self.manual_symbols.get().split(',')]
 
-        self.analysis_thread = None
+        # Clear previous results
+        self.results_text.delete('1.0', tk.END)
 
-    def create_input_section(self):
-        input_layout = QHBoxLayout()
+        # Run analysis in a separate thread
+        threading.Thread(target=self.threaded_analysis, daemon=True).start()
 
-        # Left column
-        left_column = QVBoxLayout()
-        self.analysis_type = QComboBox()
-        self.analysis_type.addItems(['crypto', 'stocks', 'both'])
-        left_column.addWidget(QLabel("Analysis Type:"))
-        left_column.addWidget(self.analysis_type)
+    def threaded_analysis(self):
+        # Redirect print statements to the GUI
+        import sys
+        class StdoutRedirector:
+            def __init__(self, text_widget):
+                self.text_widget = text_widget
 
-        self.min_fluctuation = QDoubleSpinBox()
-        self.min_fluctuation.setRange(0, 100)
-        self.min_fluctuation.setValue(5)
-        left_column.addWidget(QLabel("Min Fluctuation (%):"))
-        left_column.addWidget(self.min_fluctuation)
+            def write(self, string):
+                self.text_widget.insert(tk.END, string)
+                self.text_widget.see(tk.END)
 
-        self.max_fluctuation = QDoubleSpinBox()
-        self.max_fluctuation.setRange(0, 100)
-        self.max_fluctuation.setValue(10)
-        left_column.addWidget(QLabel("Max Fluctuation (%):"))
-        left_column.addWidget(self.max_fluctuation)
+            def flush(self):
+                pass
 
-        # Right column
-        right_column = QVBoxLayout()
-        self.consecutive_weeks = QSpinBox()
-        self.consecutive_weeks.setRange(1, 52)
-        self.consecutive_weeks.setValue(3)
-        right_column.addWidget(QLabel("Consecutive Weeks:"))
-        right_column.addWidget(self.consecutive_weeks)
+        sys.stdout = StdoutRedirector(self.results_text)
 
-        self.lookback_weeks = QSpinBox()
-        self.lookback_weeks.setRange(1, 52)
-        self.lookback_weeks.setValue(16)
-        right_column.addWidget(QLabel("Lookback Weeks:"))
-        right_column.addWidget(self.lookback_weeks)
+        # Run the main analysis
+        main()
 
-        self.max_instruments = QSpinBox()
-        self.max_instruments.setRange(1, 1000)
-        self.max_instruments.setValue(800)
-        right_column.addWidget(QLabel("Max Instruments:"))
-        right_column.addWidget(self.max_instruments)
+        # Reset stdout
+        sys.stdout = sys.__stdout__
 
-        # Add columns to input layout
-        input_layout.addLayout(left_column)
-        input_layout.addLayout(right_column)
+        messagebox.showinfo("Analysis Complete", "The financial analysis has completed.")
 
-        # Manual symbols input
-        manual_symbols_layout = QHBoxLayout()
-        self.manual_symbols_input = QLineEdit()
-        manual_symbols_layout.addWidget(QLabel("Manual Symbols:"))
-        manual_symbols_layout.addWidget(self.manual_symbols_input)
+def main():
+    """
+    Main function to run the analysis based on the configured parameters.
+    """
+    all_results = []
 
-        # Verbose checkbox
-        self.verbose_checkbox = QCheckBox("Verbose Output")
+    # Analyze manual symbols first
+    if MANUAL_SYMBOLS:
+        print("\nAnalyzing manually added symbols...")
+        manual_results = analyze_instruments(MANUAL_SYMBOLS, "manual symbols")
+        all_results.extend(manual_results)
 
-        # Start analysis button
-        self.start_button = QPushButton("Start Analysis")
-        self.start_button.clicked.connect(self.start_analysis)
-
-        # Add all input widgets to main layout
-        self.layout.addLayout(input_layout)
-        self.layout.addLayout(manual_symbols_layout)
-        self.layout.addWidget(self.verbose_checkbox)
-        self.layout.addWidget(self.start_button)
-
-    def create_output_section(self):
-        self.output_text = QTextEdit()
-        self.output_text.setReadOnly(True)
-        self.layout.addWidget(self.output_text)
-
-    def start_analysis(self):
-        self.start_button.setEnabled(False)
-        self.output_text.clear()
-
-        params = {
-            'ANALYSIS_TYPE': self.analysis_type.currentText(),
-            'MIN_FLUCTUATION': self.min_fluctuation.value(),
-            'MAX_FLUCTUATION': self.max_fluctuation.value(),
-            'CONSECUTIVE_WEEKS': self.consecutive_weeks.value(),
-            'LOOKBACK_WEEKS': self.lookback_weeks.value(),
-            'MAX_INSTRUMENTS_TO_ANALYZE': self.max_instruments.value(),
-            'VERBOSE': self.verbose_checkbox.isChecked(),
-            'MANUAL_SYMBOLS': [s.strip() for s in self.manual_symbols_input.text().split(',') if s.strip()]
-        }
-
-        self.analysis_thread = AnalysisThread(params)
-        self.analysis_thread.update_progress.connect(self.update_output)
-        self.analysis_thread.analysis_complete.connect(self.display_results)
-        self.analysis_thread.start()
-
-    def update_output(self, message):
-        self.output_text.append(message)
-
-    def display_results(self, results):
-        self.output_text.append("\nAnalysis Results:")
-        
-        meeting_criteria = [r for r in results if r['meets_criteria']]
-        hot_stocks = [r for r in meeting_criteria if r['is_hot']]
-        
-        self.output_text.append(f"\nTotal instruments analyzed: {len(results)}")
-        self.output_text.append(f"Instruments meeting criteria: {len(meeting_criteria)}")
-        self.output_text.append(f"HOT stocks identified: {len(hot_stocks)}")
-        
-        if meeting_criteria:
-            self.output_text.append("\nTop opportunities based on recent weekly fluctuations:")
-            sorted_results = sorted(meeting_criteria, key=lambda x: (x['is_hot'], x['last_fluctuation']), reverse=True)
-            for result in sorted_results[:10]:  # Display top 10 opportunities
-                hot_label = "🔥 HOT!" if result['is_hot'] else ""
-                self.output_text.append(f"\nSymbol: {result['symbol']} {hot_label}")
-                self.output_text.append(f"  Last Close: ${result['last_close']:.2f}")
-                self.output_text.append(f"  Last Week's Fluctuation: {result['last_fluctuation']:.2f}%")
-                self.output_text.append(f"  Average Weekly Fluctuation: {result['average_fluctuation']:.2f}%")
-                self.output_text.append(f"  Consistency (Std Dev): {result['consistency']:.2f}")
-                self.output_text.append(f"  Consistency Ratio: {result['consistency_ratio']:.2f}")
-                self.output_text.append(f"  Interpretation: {'Good' if result['consistency_ratio'] < 0.5 else 'Less consistent'}")
+    if ANALYSIS_TYPE in ['crypto', 'both']:
+        crypto_list = get_crypto_symbols()
+        if crypto_list:
+            crypto_results = analyze_instruments(crypto_list, "cryptocurrencies")
+            all_results.extend(crypto_results)
         else:
-            self.output_text.append("\nNo instruments met the fluctuation criteria.")
+            print("Failed to fetch cryptocurrency list. Please check your internet connection or try again later.")
 
-        self.start_button.setEnabled(True)
+    if ANALYSIS_TYPE in ['stocks', 'both']:
+        stock_list = get_stock_symbols()
+        if stock_list:
+            stock_results = analyze_instruments(stock_list, "stocks")
+            all_results.extend(stock_results)
+        else:
+            print("Failed to fetch stock list. Please check your internet connection or try again later.")
+
+    if all_results:
+        print("\nTop opportunities based on recent weekly fluctuations:")
+        sorted_results = sorted(all_results, key=lambda x: x['last_fluctuation'], reverse=True)
+        for result in sorted_results[:10]:  # Display top 10 opportunities
+            print(f"Symbol: {result['symbol']}")
+            print(f"  Last Close: ${result['last_close']:.2f}")
+            print(f"  Last Week's Fluctuation: {result['last_fluctuation']:.2f}%")
+            print(f"  Average Weekly Fluctuation: {result['average_fluctuation']:.2f}%")
+            print(f"  Meets Criteria: {'Yes' if result['meets_criteria'] else 'No'}")
+            print()
+    else:
+        print("No results found. Please check your internet connection and try again.")
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = FinancialAnalysisGUI()
-    window.show()
-    sys.exit(app.exec_())
+    root = tk.Tk()
+    app = FinancialAnalysisGUI(root)
+    root.mainloop()
