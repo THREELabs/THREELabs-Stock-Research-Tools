@@ -6,6 +6,7 @@ import io
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 import threading
+import queue
 
 # Configurable Parameters
 ANALYSIS_TYPE = 'both'  # Choose to analyze 'crypto', 'stocks', or 'both'
@@ -81,12 +82,18 @@ def analyze_instruments(symbols, instrument_type):
             last_fluctuation = weekly_fluctuations.iloc[-1]
             average_fluctuation = weekly_fluctuations.mean()
             
+            # Calculate overall growth and determine if it's "HOT"
+            overall_growth = (last_close - hist['Close'].iloc[0]) / hist['Close'].iloc[0] * 100
+            is_hot = meets_criteria and overall_growth > 0 and last_fluctuation > average_fluctuation
+            
             results.append({
                 'symbol': symbol,
                 'last_close': last_close,
                 'last_fluctuation': last_fluctuation,
                 'average_fluctuation': average_fluctuation,
-                'meets_criteria': meets_criteria
+                'meets_criteria': meets_criteria,
+                'overall_growth': overall_growth,
+                'is_hot': is_hot
             })
             
             if VERBOSE:
@@ -105,6 +112,8 @@ class FinancialAnalysisGUI:
         master.geometry("800x600")
 
         self.create_widgets()
+        self.queue = queue.Queue()
+        self.update_gui()
 
     def create_widgets(self):
         # Create tabs
@@ -151,7 +160,8 @@ class FinancialAnalysisGUI:
         ttk.Entry(self.config_frame, textvariable=self.manual_symbols).grid(row=6, column=1, sticky='w', padx=5, pady=5)
 
         # Run Analysis Button
-        ttk.Button(self.config_frame, text="Run Analysis", command=self.run_analysis).grid(row=7, column=0, columnspan=2, pady=20)
+        self.run_button = ttk.Button(self.config_frame, text="Run Analysis", command=self.run_analysis)
+        self.run_button.grid(row=7, column=0, columnspan=2, pady=20)
 
         # Results Tab
         self.results_frame = ttk.Frame(self.notebook)
@@ -174,6 +184,9 @@ class FinancialAnalysisGUI:
 
         # Clear previous results
         self.results_text.delete('1.0', tk.END)
+
+        # Disable the run button
+        self.run_button.config(state='disabled')
 
         # Run analysis in a separate thread
         threading.Thread(target=self.threaded_analysis, daemon=True).start()
@@ -200,7 +213,19 @@ class FinancialAnalysisGUI:
         # Reset stdout
         sys.stdout = sys.__stdout__
 
-        messagebox.showinfo("Analysis Complete", "The financial analysis has completed.")
+        # Signal that the analysis is complete
+        self.queue.put("Analysis Complete")
+
+    def update_gui(self):
+        try:
+            message = self.queue.get(0)
+            if message == "Analysis Complete":
+                messagebox.showinfo("Analysis Complete", "The financial analysis has completed.")
+                self.run_button.config(state='normal')
+        except queue.Empty:
+            pass
+        finally:
+            self.master.after(100, self.update_gui)
 
 def main():
     """
@@ -232,12 +257,14 @@ def main():
 
     if all_results:
         print("\nTop opportunities based on recent weekly fluctuations:")
-        sorted_results = sorted(all_results, key=lambda x: x['last_fluctuation'], reverse=True)
+        sorted_results = sorted(all_results, key=lambda x: (x['is_hot'], x['last_fluctuation']), reverse=True)
         for result in sorted_results[:10]:  # Display top 10 opportunities
-            print(f"Symbol: {result['symbol']}")
+            hot_indicator = "🔥 HOT!" if result['is_hot'] else ""
+            print(f"Symbol: {result['symbol']} {hot_indicator}")
             print(f"  Last Close: ${result['last_close']:.2f}")
             print(f"  Last Week's Fluctuation: {result['last_fluctuation']:.2f}%")
             print(f"  Average Weekly Fluctuation: {result['average_fluctuation']:.2f}%")
+            print(f"  Overall Growth: {result['overall_growth']:.2f}%")
             print(f"  Meets Criteria: {'Yes' if result['meets_criteria'] else 'No'}")
             print()
     else:
