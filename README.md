@@ -54,7 +54,7 @@ This Python program is a comprehensive financial analysis tool that helps identi
 
 # Stock Analysis Tool (buy-low-sell-high-CMD)
 
-This Python application is a comprehensive Stock Analysis Tool designed to help investors identify promising stock opportunities and analyze individual stocks. It provides both single stock analysis and a feature to search for potentially undervalued stocks based on technical indicators.
+This Python application is a comprehensive Stock (and Crypto) Analysis Tool designed to help investors identify promising stock opportunities and analyze individual stocks. It provides both single stock analysis and a feature to search for potentially undervalued stocks based on technical indicators.
 
 ## Features
 
