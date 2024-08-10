@@ -50,10 +50,6 @@ This Python program is a comprehensive financial analysis tool that helps identi
 - **Max Instruments**: Limit the number of instruments to analyze for performance
 - **Manual Symbols**: Add specific stock or crypto symbols to include in the analysis
 
-## Disclaimer
-
-This tool is for informational purposes only and should not be considered financial advice. Always do your own research and consult with a qualified financial advisor before making investment decisions.
-
 <hr>
 
 # Stock Analysis Tool (buy-low-sell-high-CMD)
@@ -89,3 +85,8 @@ This Python application is a comprehensive Stock Analysis Tool designed to help 
 
 - Python 3.x
 - Required libraries: yfinance, pandas, numpy, requests, tqdm, tabulate
+
+
+## Disclaimer
+
+This tool is for informational purposes only and should not be considered financial advice. Always do your own research and consult with a qualified financial advisor before making investment decisions.
