@@ -25,16 +25,6 @@ This Python program is a comprehensive financial analysis tool that helps identi
 - Python 3.x
 - Required libraries: yfinance, pandas, requests, tkinter
 
-## Installation
-
-1. Clone this repository:
-   ```
-   git clone https://github.com/yourusername/financial-analysis-tool.git
-   ```
-2. Install the required libraries:
-   ```
-   pip install yfinance pandas requests
-   ```
 
 ## Usage
 
@@ -64,7 +54,38 @@ This Python program is a comprehensive financial analysis tool that helps identi
 
 This tool is for informational purposes only and should not be considered financial advice. Always do your own research and consult with a qualified financial advisor before making investment decisions.
 
-## Contributing
+<hr>
 
-Contributions, issues, and feature requests are welcome. Feel free to check [issues page](https://github.com/yourusername/financial-analysis-tool/issues) if you want to contribute.
+# Stock Analysis Tool (buy-low-sell-high-CMD)
 
+This Python application is a comprehensive Stock Analysis Tool designed to help investors identify promising stock opportunities and analyze individual stocks. It provides both single stock analysis and a feature to search for potentially undervalued stocks based on technical indicators.
+
+## Features
+
+- Fetch and analyze real-time stock data using the yfinance library
+- Analyze individual stocks with detailed metrics and recommendations
+- Search for promising stocks among thousands of tickers
+- Calculate technical indicators such as RSI (Relative Strength Index) and SMAs (Simple Moving Averages)
+- Provide buy and sell recommendations based on current market conditions
+- Multi-threaded analysis for improved performance
+- User-friendly command-line interface
+
+## How It Works
+
+1. **Single Stock Analysis:**
+   - Fetches comprehensive data for a given stock ticker
+   - Displays key metrics like current price, 52-week high/low, market cap, P/E ratio, and dividend yield
+   - Shows recent performance and calculates average weekly change
+   - Provides buy and sell price recommendations
+
+2. **Promising Stock Search:**
+   - Fetches a specified number of stock tickers from the NASDAQ API
+   - Analyzes each stock using technical indicators (RSI, SMA)
+   - Identifies stocks that meet specific criteria (e.g., RSI < 40, price near 50-day SMA)
+   - Calculates potential gain for each promising stock
+   - Displays a sorted list of the most promising stocks
+
+## Requirements
+
+- Python 3.x
+- Required libraries: yfinance, pandas, numpy, requests, tqdm, tabulate
