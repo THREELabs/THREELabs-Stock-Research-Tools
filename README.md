@@ -1,4 +1,4 @@
-# Financial Analysis Tool (drop-checker-GUI / drop-checker-CMD )
+# Financial Analysis Tool (fluctuation-checker-GUI / fluctuation-checker-CMD )
 
 This Python program is a comprehensive financial analysis tool that helps identify potentially promising investment opportunities in both cryptocurrencies and stocks. It analyzes price fluctuations over time to find assets that meet specific criteria, potentially indicating favorable market conditions. Command line and GUI versions may have some slight differences.
 
