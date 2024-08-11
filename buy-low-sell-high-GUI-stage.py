@@ -7,6 +7,7 @@ from tqdm import tqdm
 import time
 import random
 import requests
+from io import StringIO
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QTextEdit, QTabWidget,
                              QProgressBar, QTableWidget, QTableWidgetItem, QSpinBox, QDoubleSpinBox)
@@ -24,8 +25,8 @@ def get_stock_data(ticker, period="1mo"):
 
 def calculate_rsi(data, window=14):
     delta = data['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+    gain = delta.where(delta > 0, 0).rolling(window=window).mean()
+    loss = -delta.where(delta < 0, 0).rolling(window=window).mean()
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
@@ -33,52 +34,11 @@ def analyze_weekly_change(history):
     weekly_returns = history['Close'].resample('W').last().pct_change()
     return weekly_returns.mean()
 
-def get_recommendations(history, avg_weekly_change, min_fluctuation, max_fluctuation):
-    current_price = history['Close'].iloc[-1]
-
-    # Use the user-defined fluctuation range
-    buy_price = current_price * (1 - max_fluctuation / 100)
-    sell_price = current_price * (1 + min_fluctuation / 100)
-
-    return buy_price, sell_price
-
-def analyze_stock(ticker, min_fluctuation, max_fluctuation):
-    stock, history = get_stock_data(ticker)
-    if stock is None or history is None or history.empty or len(history) < 14:
-        return None
-
-    history['RSI'] = calculate_rsi(history)
-    history['SMA_50'] = history['Close'].rolling(window=50).mean()
-    history['SMA_200'] = history['Close'].rolling(window=200).mean()
-
-    current_price = history['Close'].iloc[-1]
-    current_rsi = history['RSI'].iloc[-1]
-    sma_50 = history['SMA_50'].iloc[-1]
-    sma_200 = history['SMA_200'].iloc[-1]
-
-    if current_rsi < 40 and current_price > sma_50 * 0.95:
-        avg_weekly_change = analyze_weekly_change(history)
-        buy_price, sell_price = get_recommendations(history, avg_weekly_change, min_fluctuation, max_fluctuation)
-
-        potential_gain_percentage = ((sell_price / buy_price) - 1) * 100
-        potential_gain_dollars = (sell_price - buy_price)
-
-        return {
-            'ticker': ticker,
-            'current_price': current_price,
-            'rsi': current_rsi,
-            'buy_price': buy_price,
-            'sell_price': sell_price,
-            'potential_gain_percentage': potential_gain_percentage,
-            'potential_gain_dollars': potential_gain_dollars
-        }
-
-    return None
-
 def get_tickers(num_stocks):
     url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
     response = requests.get(url)
-    tables = pd.read_html(response.text)
+    html_content = StringIO(response.text)
+    tables = pd.read_html(html_content)
     sp500_table = tables[0]
     tickers = sp500_table['Symbol'].tolist()
     return random.sample(tickers, min(num_stocks, len(tickers)))
@@ -94,16 +54,55 @@ class StockAnalysisWorker(QThread):
         self.max_fluctuation = max_fluctuation
 
     def run(self):
-        promising_stocks = []
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(analyze_stock, ticker, self.min_fluctuation, self.max_fluctuation): ticker for ticker in self.tickers}
-            for i, future in enumerate(as_completed(futures), 1):
-                result = future.result()
-                if result:
-                    promising_stocks.append(result)
-                self.progress.emit(int(i / len(self.tickers) * 100))
+        total_stocks = len(self.tickers)
+        analyzed_stocks = []
 
-        self.finished.emit(promising_stocks)
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            for ticker in self.tickers:
+                future = executor.submit(self.analyze_stock, ticker)
+                futures.append(future)
+
+            for future in tqdm(as_completed(futures), total=total_stocks):
+                stock_info = future.result()
+                if stock_info:
+                    analyzed_stocks.append(stock_info)
+                self.progress.emit(len(analyzed_stocks))
+
+        self.finished.emit(analyzed_stocks)
+
+    def analyze_stock(self, ticker):
+        try:
+            stock, history = get_stock_data(ticker, period="1y")
+            if stock is None or history is None or history.empty:
+                return None
+
+            current_price = history['Close'].iloc[-1]
+            rsi = calculate_rsi(history).iloc[-1]
+            avg_weekly_change = analyze_weekly_change(history)
+
+            buy_price = current_price * (1 - self.min_fluctuation / 100)
+            sell_price = current_price * (1 + self.max_fluctuation / 100)
+
+            return self.format_stock_info(stock, current_price, rsi, buy_price, sell_price)
+
+        except Exception as e:
+            print(f"Error analyzing {ticker}: {e}")
+            return None
+
+    def format_stock_info(self, stock, current_price, rsi, buy_price, sell_price):
+        potential_gain_percentage = ((sell_price - current_price) / current_price) * 100
+        potential_gain_dollars = (sell_price - current_price)
+
+        return {
+            'ticker': stock.ticker,
+            'current_price': current_price,
+            'rsi': rsi,
+            'buy_price': buy_price,
+            'sell_price': sell_price,
+            'potential_gain_percentage': potential_gain_percentage,
+            'potential_gain_dollars': potential_gain_dollars
+        }
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -144,9 +143,7 @@ class MainWindow(QMainWindow):
         ticker_layout.addWidget(ticker_label)
         ticker_layout.addWidget(self.ticker_input)
 
-        # Fluctuation percentage input
-        fluctuation_layout = QHBoxLayout()
-        fluctuation_label = QLabel("Price fluctuation range (%):")
+        # Fluctuation percentage input for single stock
         self.min_fluctuation_input_single = QDoubleSpinBox()
         self.min_fluctuation_input_single.setRange(0.1, 100)
         self.min_fluctuation_input_single.setValue(4.0)
@@ -155,17 +152,16 @@ class MainWindow(QMainWindow):
         self.max_fluctuation_input_single.setRange(0.1, 100)
         self.max_fluctuation_input_single.setValue(8.0)
         self.max_fluctuation_input_single.setSingleStep(0.1)
-        fluctuation_layout.addWidget(fluctuation_label)
-        fluctuation_layout.addWidget(self.min_fluctuation_input_single)
-        fluctuation_layout.addWidget(QLabel("to"))
-        fluctuation_layout.addWidget(self.max_fluctuation_input_single)
+        ticker_layout.addWidget(QLabel("Min %:"))
+        ticker_layout.addWidget(self.min_fluctuation_input_single)
+        ticker_layout.addWidget(QLabel("Max %:"))
+        ticker_layout.addWidget(self.max_fluctuation_input_single)
 
         analyze_button = QPushButton("Analyze")
         analyze_button.clicked.connect(self.analyze_single_stock)
-        fluctuation_layout.addWidget(analyze_button)
+        ticker_layout.addWidget(analyze_button)
 
         layout.addLayout(ticker_layout)
-        layout.addLayout(fluctuation_layout)
 
         # Results display
         self.single_stock_results = QTextEdit()
@@ -223,8 +219,6 @@ class MainWindow(QMainWindow):
 
     def analyze_single_stock(self):
         ticker = self.ticker_input.text().strip().upper()
-        min_fluctuation = self.min_fluctuation_input_single.value()
-        max_fluctuation = self.max_fluctuation_input_single.value()
         if not ticker:
             self.single_stock_results.setText("Please enter a valid ticker symbol.")
             return
@@ -239,9 +233,20 @@ class MainWindow(QMainWindow):
 
         info = stock.info
         current_price = history['Close'].iloc[-1]
+        rsi = calculate_rsi(history).iloc[-1]
+
+        min_fluctuation = self.min_fluctuation_input_single.value()
+        max_fluctuation = self.max_fluctuation_input_single.value()
+
+        buy_price = current_price * (1 - min_fluctuation / 100)
+        sell_price = current_price * (1 + max_fluctuation / 100)
 
         result = f"Stock Information for {ticker}:\n\n"
         result += f"Current Price: ${current_price:.2f}\n"
+        result += f"RSI: {rsi:.2f}\n"
+        result += f"Recommended Buy Price: ${buy_price:.2f}\n"
+        result += f"Recommended Sell Price: ${sell_price:.2f}\n"
+        result += f"Potential Gain: {((sell_price - current_price) / current_price) * 100:.2f}%\n\n"
         result += f"52 Week High: ${info.get('fiftyTwoWeekHigh', 'N/A')}\n"
         result += f"52 Week Low: ${info.get('fiftyTwoWeekLow', 'N/A')}\n"
         result += f"Market Cap: ${info.get('marketCap', 0) / 1e9:.2f}B\n"
@@ -250,22 +255,6 @@ class MainWindow(QMainWindow):
 
         avg_weekly_change = analyze_weekly_change(history)
         result += f"Average Weekly Change: {avg_weekly_change:.2%}\n\n"
-
-        last_week = history.last('1w')
-        weekly_low = last_week['Low'].min()
-        weekly_high = last_week['High'].max()
-        weekly_change = (last_week['Close'].iloc[-1] / last_week['Open'].iloc[0] - 1)
-
-        result += "Last Week's Performance:\n"
-        result += f"Last Week's Low: ${weekly_low:.2f}\n"
-        result += f"Last Week's High: ${weekly_high:.2f}\n"
-        result += f"Last Week's Change: {weekly_change:.2%}\n\n"
-
-        buy_price, sell_price = get_recommendations(history, avg_weekly_change, min_fluctuation, max_fluctuation)
-
-        result += "Recommendations:\n"
-        result += f"Recommended Buy Price: ${buy_price:.2f}\n"
-        result += f"Recommended Sell Price: ${sell_price:.2f}\n"
 
         self.single_stock_results.setText(result)
 
