@@ -2,6 +2,7 @@ import yfinance as yf
 from datetime import datetime, timedelta
 import pandas as pd
 import requests
+import numpy as np
 
 def get_top_cryptos(limit=3000):
     url = f"https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page={limit}&page=1&sparkline=false"
@@ -46,7 +47,8 @@ def analyze_cryptos(crypto_list, min_change, max_change, consecutive_days):
                 data = calculate_daily_change(data)
                 
                 if check_fluctuation(data, min_change, max_change, consecutive_days):
-                    results.append(crypto)
+                    avg_change = np.mean(np.abs(data['Daily_Change']))
+                    results.append((crypto, avg_change))
             else:
                 print(f"No data available for {crypto}")
         except Exception as e:
@@ -64,6 +66,14 @@ consecutive_days = 5
 
 fluctuating_cryptos = analyze_cryptos(crypto_list, min_change, max_change, consecutive_days)
 
+# Calculate the average change across all cryptocurrencies
+avg_overall_change = np.mean([change for _, change in fluctuating_cryptos])
+
 print(f"Cryptocurrencies fluctuating between {min_change}% and {max_change}% for {consecutive_days} consecutive days:")
-for crypto in fluctuating_cryptos:
-    print(crypto)
+for crypto, avg_change in fluctuating_cryptos:
+    if avg_change > avg_overall_change:
+        print(f"{crypto}* (Avg change: {avg_change:.2f}%)")
+    else:
+        print(f"{crypto} (Avg change: {avg_change:.2f}%)")
+
+print("\n* indicates cryptocurrencies with above-average daily change, potentially offering higher profit opportunities.")
