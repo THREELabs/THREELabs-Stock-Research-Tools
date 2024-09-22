@@ -95,4 +95,4 @@ def main():
         print(f"{currency:<10} {ann_vol:18.2%} {daily_vol:18.2%} {avg_change:18.2%}")
 
 if __name__ == "__main__":
-    main()
+    main()  
