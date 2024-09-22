@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
-from datetime import datetime, timedelta
 import numpy as np
+from datetime import datetime, timedelta
 import time
 
 def get_coinbase_currencies():
@@ -21,7 +21,7 @@ def get_historical_data(currency_pair, start_date, end_date):
         df = pd.DataFrame(response.json(), columns=['time', 'low', 'high', 'open', 'close', 'volume'])
         df['time'] = pd.to_datetime(df['time'], unit='s')
         df.set_index('time', inplace=True)
-        df['Daily Change %'] = (df['close'] - df['open']) / df['open'] * 100  # Calculate daily percentage change
+        df['Daily Change %'] = (df['close'] - df['open']) / df['open'] * 100
         return df
     else:
         print(f"Error fetching data for {currency_pair}: {response.status_code} - {response.text}")
@@ -36,10 +36,8 @@ def calculate_volatility(df):
 
 def format_dataframe(df):
     formatted_df = df.copy()
-    formatted_df['low'] = formatted_df['low'].round(4)
-    formatted_df['high'] = formatted_df['high'].round(4)
-    formatted_df['open'] = formatted_df['open'].round(4)
-    formatted_df['close'] = formatted_df['close'].round(4)
+    for col in ['low', 'high', 'open', 'close']:
+        formatted_df[col] = formatted_df[col].round(4)
     formatted_df['volume'] = formatted_df['volume'].round(2)
     formatted_df['Daily Change %'] = formatted_df['Daily Change %'].round(2)
     return formatted_df
@@ -58,14 +56,21 @@ def main():
                 print(f"No data available for {currency}-USD")
                 continue
             
-            volatility = calculate_volatility(df)
-            if not np.isnan(volatility):
-                volatilities.append((currency, volatility))
+            annualized_volatility = calculate_volatility(df)
+            if not np.isnan(annualized_volatility):
+                daily_volatility = annualized_volatility / np.sqrt(365)
+                avg_daily_change = df['Daily Change %'].abs().mean()
+                volatilities.append((currency, annualized_volatility, daily_volatility, avg_daily_change))
+                
                 print(f"\nData for {currency}:")
                 formatted_df = format_dataframe(df)
                 print(formatted_df[['low', 'high', 'open', 'close', 'volume', 'Daily Change %']].head().to_string())
                 print(f"\nNumber of rows: {len(df)}")
-                print(f"Volatility: {volatility:.2%}")
+                print(f"Annualized Volatility: {annualized_volatility:.2%}")
+                print(f"Estimated Daily Volatility: {daily_volatility:.2%}")
+                print(f"Average Daily Change: {avg_daily_change:.2%}")
+                print("\nNote: Annualized volatility does not mean the price changes by this percentage each day.")
+                print("Daily changes are typically much smaller, as shown in the 'Daily Change %' column.")
                 print("---")
             else:
                 print(f"Insufficient data for {currency}")
@@ -78,12 +83,12 @@ def main():
         except Exception as e:
             print(f"Failed to get data for {currency}: {str(e)}")
     
-    # Sort by volatility and get top 10
+    # Sort by annualized volatility and get top 10
     top_10 = sorted(volatilities, key=lambda x: x[1], reverse=True)[:10]
     
     print("\nTop 10 most volatile cryptocurrencies on Coinbase:")
-    for currency, volatility in top_10:
-        print(f"{currency}: {volatility:.2%} average daily volatility")
+    for currency, ann_vol, daily_vol, avg_change in top_10:
+        print(f"{currency}: {ann_vol:.2%} annualized volatility, {daily_vol:.2%} est. daily volatility, {avg_change:.2%} avg. daily change")
 
 if __name__ == "__main__":
     main()
