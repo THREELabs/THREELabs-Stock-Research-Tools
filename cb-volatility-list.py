@@ -86,9 +86,13 @@ def main():
     # Sort by annualized volatility and get top 10
     top_10 = sorted(volatilities, key=lambda x: x[1], reverse=True)[:10]
     
-    print("\nTop 10 most volatile cryptocurrencies on Coinbase:")
+    print("\n" + "="*50)
+    print("TOP 10 MOST VOLATILE CRYPTOCURRENCIES ON COINBASE")
+    print("="*50)
+    print(f"{'Currency':<10} {'Ann. Volatility':<20} {'Est. Daily Vol.':<20} {'Avg. Daily Change':<20}")
+    print("-"*70)
     for currency, ann_vol, daily_vol, avg_change in top_10:
-        print(f"{currency}: {ann_vol:.2%} annualized volatility, {daily_vol:.2%} est. daily volatility, {avg_change:.2%} avg. daily change")
+        print(f"{currency:<10} {ann_vol:18.2%} {daily_vol:18.2%} {avg_change:18.2%}")
 
 if __name__ == "__main__":
     main()
