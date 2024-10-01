@@ -166,18 +166,18 @@ def main():
         except Exception as e:
             print(f"Failed to get data for {currency}: {str(e)}")
 
-    # Sort by strategy total return and get top 10 uptrend
-    top_10_uptrend = sorted([r for r in results if r[9] == 'uptrend'], key=lambda x: x[10], reverse=True)[:10]
+    # Sort by 7-day price change and get top 10 uptrend (Momentum Movers)
+    momentum_movers = sorted([r for r in results if r[9] == 'uptrend'], key=lambda x: x[10], reverse=True)[:10]
 
-    # Sort by strategy total return and get top 10 downtrend
+    # Sort by 7-day price change and get top 10 downtrend
     top_10_downtrend = sorted([r for r in results if r[9] == 'downtrend'], key=lambda x: x[10])[:10]
 
     print("\n" + "="*140)
-    print("TOP 10 UPTRENDING CRYPTOCURRENCIES ON COINBASE")
+    print("TOP 10 MOMENTUM MOVERS (UPTRENDING CRYPTOCURRENCIES) ON COINBASE")
     print("="*140)
     print(f"{'Currency':<10} {'Volatility':<12} {'Sharpe Ratio':<15} {'Price':<10} {'SMA(20)':<10} {'RSI':<10} {'Avg Daily Change':<18} {'Strategy Return':<18} {'Avg Trade Return':<18} {'7d Change':<10}")
     print("-"*140)
-    for currency, vol, sharpe, price, sma, rsi, avg_change, total_return, avg_return_per_trade, trend, price_change_7d in top_10_uptrend:
+    for currency, vol, sharpe, price, sma, rsi, avg_change, total_return, avg_return_per_trade, trend, price_change_7d in momentum_movers:
         print(f"{currency:<10} {vol:10.2%} {sharpe:13.2f} ${price:<8.2f} ${sma:<8.2f} {rsi:<8.2f} {avg_change:16.2%} {total_return:16.2%} {avg_return_per_trade:16.2%} {price_change_7d:8.2f}%")
 
     print("\n" + "="*140)
@@ -189,6 +189,7 @@ def main():
         print(f"{currency:<10} {vol:10.2%} {sharpe:13.2f} ${price:<8.2f} ${sma:<8.2f} {rsi:<8.2f} {avg_change:16.2%} {total_return:16.2%} {avg_return_per_trade:16.2%} {price_change_7d:8.2f}%")
 
     print("\nInterpretation Guide:")
+    print("- Momentum Movers: Cryptocurrencies in an uptrend, sorted by 7-day price change. These might be good candidates for momentum trading strategies.")
     print("- Volatility: Higher values indicate higher risk and potential for larger price swings.")
     print("- Sharpe Ratio: Higher values suggest better risk-adjusted returns historically.")
     print("- Price vs SMA: Price above SMA might indicate an uptrend, below might indicate a downtrend.")
