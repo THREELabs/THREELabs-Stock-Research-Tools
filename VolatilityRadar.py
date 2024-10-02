@@ -109,7 +109,7 @@ def calculate_trend(df, window=14):
     df['trend'] = np.where(df['close'] > df['SMA'], 'uptrend', 'downtrend')
     return df['trend'].iloc[-1]
 
-def select_top_picks(crypto_list, num_picks=2):
+def select_top_picks(crypto_list, num_picks=4):
     # Sort by a combination of factors: 7-day change, Sharpe ratio, and RSI
     sorted_list = sorted(crypto_list, key=lambda x: (x[10], x[2], 70 - abs(x[5] - 50)), reverse=True)
     return sorted_list[:num_picks]
