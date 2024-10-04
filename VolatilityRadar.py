@@ -114,6 +114,11 @@ def select_top_picks(crypto_list, num_picks=4):
     sorted_list = sorted(crypto_list, key=lambda x: (x[10], x[2], 70 - abs(x[5] - 50)), reverse=True)
     return sorted_list[:num_picks]
 
+def select_volatility_surfers(crypto_list, num_picks=4):
+    # Sort by a combination of factors: volatility, absolute 7-day change, and RSI proximity to 50
+    sorted_list = sorted(crypto_list, key=lambda x: (x[1], abs(x[10]), -abs(x[5] - 50)), reverse=True)
+    return sorted_list[:num_picks]
+
 def main():
     currencies = get_coinbase_currencies()
     end_date = datetime.now()
@@ -181,6 +186,9 @@ def main():
     uptrend_picks = select_top_picks([r for r in results if r[9] == 'uptrend'])
     downtrend_picks = select_top_picks([r for r in results if r[9] == 'downtrend'])
 
+    # Select Volatility Surfers
+    volatility_surfers = select_volatility_surfers(results)
+
     print("\n" + "="*140)
     print("TOP 10 MOMENTUM MOVERS (UPTRENDING CRYPTOCURRENCIES) ON COINBASE")
     print("="*140)
@@ -207,11 +215,22 @@ def main():
     for currency, vol, sharpe, price, sma, rsi, avg_change, total_return, avg_return_per_trade, trend, price_change_7d in downtrend_picks:
         print(f"{currency:<10} Price: ${price:<8.2f} RSI: {rsi:<8.2f} 7d Change: {price_change_7d:8.2f}% Sharpe Ratio: {sharpe:8.2f}")
 
+    print("\n" + "="*140)
+    print("VOLATILITY SURFERS - CRYPTOCURRENCIES WITH SIGNIFICANT FLUCTUATIONS")
+    print("="*140)
+    print(f"{'Currency':<10} {'Volatility':<12} {'Sharpe Ratio':<15} {'Price':<10} {'SMA(20)':<10} {'RSI':<10} {'Avg Daily Change':<18} {'Strategy Return':<18} {'Avg Trade Return':<18} {'7d Change':<10}")
+    print("-"*140)
+    for currency, vol, sharpe, price, sma, rsi, avg_change, total_return, avg_return_per_trade, trend, price_change_7d in volatility_surfers:
+        print(f"{currency:<10} {vol:10.2%} {sharpe:13.2f} ${price:<8.2f} ${sma:<8.2f} {rsi:<8.2f} {avg_change:16.2%} {total_return:16.2%} {avg_return_per_trade:16.2%} {price_change_7d:8.2f}%")
+
     print("\nInterpretation Guide:")
     print("- Momentum Movers: Cryptocurrencies in an uptrend, sorted by 7-day price change. These might be good candidates for momentum trading strategies.")
     print("- Top Picks: Selected based on a combination of recent performance, risk-adjusted returns, and technical indicators.")
     print("  - Uptrending Picks: May be suitable for momentum strategies or long-term investment if fundamentals are strong.")
     print("  - Downtrending Picks: May present potential value investments or reversal opportunities, but carry higher risk.")
+    print("- Volatility Surfers: Cryptocurrencies with high volatility and significant price fluctuations in both directions.")
+    print("  These may present opportunities for skilled traders who can profit from both upward and downward movements.")
+    print("  However, they also carry higher risk due to their unpredictable nature.")
     print("- Volatility: Higher values indicate higher risk and potential for larger price swings.")
     print("- Sharpe Ratio: Higher values suggest better risk-adjusted returns historically.")
     print("- RSI: Values above 70 may indicate overbought conditions, below 30 may indicate oversold.")
