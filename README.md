@@ -63,3 +63,25 @@ You can modify the following parameters in the code to customize your analysis:
 - `MANUAL_SYMBOLS`: Add your manual stock or crypto symbols here (e.g., `['AAPL', 'GOOGL', 'BTC-USD']`).
 
 
+
+
+# Fluctuation Scout
+
+## Overview
+
+The  Fluctuation Scout Analysis Application is a Python tool that analyzes cryptocurrencies from the Coinbase exchange to identify promising investment opportunities based on price fluctuations over a specified period.
+
+## Features
+
+- **Cryptocurrency Retrieval**: Fetches a list of available cryptocurrencies traded against USD from the Coinbase API.
+- **Fluctuation Calculation**: Utilizes the `yfinance` library to retrieve historical price data and calculate daily price fluctuations as a percentage.
+- **Criteria-Based Analysis**: Identifies promising cryptocurrencies by checking if their daily fluctuations fall within a specified percentage range over a defined time period.
+- **User Input**: Allows customization of the analysis period (number of days), minimum and maximum fluctuation percentages, and frequency threshold for identifying promising cryptocurrencies.
+- **Result Saving**: Saves the list of identified promising cryptocurrencies to a text file for further review.
+
+## Requirements
+
+- Python 3.x
+- `yfinance` library (install via `pip install yfinance`)
+- `requests` library (install via `pip install requests`)
+
