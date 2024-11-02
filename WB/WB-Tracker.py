@@ -213,7 +213,7 @@ def get_stock_data(self, symbol: str) -> Dict:
             logger.error(f"Error getting stock data for {symbol}: {str(e)}")
             return {}
 
-    def get_buffett_stocks(self) -> List[str]:
+def get_buffett_stocks(self) -> List[str]:
         """
         Get list of Buffett stocks from latest 13F filing and historical records.
         Uses caching to avoid frequent SEC API calls.
@@ -251,7 +251,7 @@ def get_stock_data(self, symbol: str) -> Dict:
             logger.error(f"Error in get_buffett_stocks: {str(e)}")
             return []
 
-    def detect_position_changes(self, current_holdings: Dict, previous_holdings: Dict) -> Dict:
+def detect_position_changes(self, current_holdings: Dict, previous_holdings: Dict) -> Dict:
         """Detect changes in positions between current and previous holdings."""
         changes = {
             'new_positions': [],
@@ -311,7 +311,7 @@ def get_stock_data(self, symbol: str) -> Dict:
 
         return changes
 
-    def analyze_holdings(self) -> Dict:
+def analyze_holdings(self) -> Dict:
         """Analyze current holdings and changes."""
         current_holdings = {}
 
@@ -336,7 +336,7 @@ def get_stock_data(self, symbol: str) -> Dict:
             logger.error(f"Error analyzing holdings: {str(e)}")
             return {'holdings': {}, 'changes': {}, 'sold_positions': []}
 
-    def generate_report(self) -> str:
+def generate_report(self) -> str:
         """Generate a comprehensive report with position changes and historical sales."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         report = f"Warren Buffett Portfolio Analysis Report - {timestamp}\n"
