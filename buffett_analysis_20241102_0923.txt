@@ -1,0 +1,137 @@
+Warren Buffett Portfolio Analysis Report - 2024-11-02 09:22:50
+============================================================
+
+HISTORICAL SALES SUMMARY:
+----------------------------------------
+
+No historical sales recorded yet.
+
+
+RECENT POSITION CHANGES:
+----------------------------------------
+
+NEW POSITIONS:
++ STNE: 10,695,448 shares ($118,505,563.84)
++ ALLY: 29,000,000 shares ($1,002,530,000.00)
++ GL: 2,515,574 shares ($261,670,007.48)
++ KHC: 325,634,818 shares ($10,905,510,054.82)
++ HPQ: 120,952,818 shares ($4,388,168,237.04)
++ AAPL: 915,560,382 shares ($204,087,564,751.62)
++ CE: 5,358,535 shares ($668,798,753.35)
++ BAC: 1,032,852,006 shares ($43,131,899,770.56)
++ DVA: 36,095,570 shares ($5,110,771,756.30)
++ OXY: 224,129,192 shares ($11,110,084,047.44)
++ AXP: 151,610,700 shares ($41,342,721,783.00)
++ MKL: 471,661 shares ($728,716,245.00)
++ KO: 400,000,000 shares ($26,004,000,000.00)
++ CVX: 123,120,120 shares ($18,845,996,768.40)
++ MCO: 24,669,778 shares ($11,258,299,888.08)
+
+
+CURRENT HOLDINGS SUMMARY:
+----------------------------------------
+
+STNE:
+Shares Held: 10,695,448
+Current Price: $11.08
+Position Value: $118,505,563.84
+1-Month Change: 0.00%
+------------------------------
+
+ALLY:
+Shares Held: 29,000,000
+Current Price: $34.57
+Position Value: $1,002,530,000.00
+1-Month Change: 0.95%
+------------------------------
+
+GL:
+Shares Held: 2,515,574
+Current Price: $104.02
+Position Value: $261,670,007.48
+1-Month Change: -0.89%
+------------------------------
+
+KHC:
+Shares Held: 325,634,818
+Current Price: $33.49
+Position Value: $10,905,510,054.82
+1-Month Change: -2.56%
+------------------------------
+
+HPQ:
+Shares Held: 120,952,818
+Current Price: $36.28
+Position Value: $4,388,168,237.04
+1-Month Change: 3.13%
+------------------------------
+
+AAPL:
+Shares Held: 915,560,382
+Current Price: $222.91
+Position Value: $204,087,564,751.62
+1-Month Change: -1.71%
+------------------------------
+
+CE:
+Shares Held: 5,358,535
+Current Price: $124.81
+Position Value: $668,798,753.35
+1-Month Change: -6.95%
+------------------------------
+
+BAC:
+Shares Held: 1,032,852,006
+Current Price: $41.76
+Position Value: $43,131,899,770.56
+1-Month Change: 6.45%
+------------------------------
+
+DVA:
+Shares Held: 36,095,570
+Current Price: $141.59
+Position Value: $5,110,771,756.30
+1-Month Change: -11.01%
+------------------------------
+
+OXY:
+Shares Held: 224,129,192
+Current Price: $49.57
+Position Value: $11,110,084,047.44
+1-Month Change: -7.24%
+------------------------------
+
+AXP:
+Shares Held: 151,610,700
+Current Price: $272.69
+Position Value: $41,342,721,783.00
+1-Month Change: 0.92%
+------------------------------
+
+MKL:
+Shares Held: 471,661
+Current Price: $1,545.00
+Position Value: $728,716,245.00
+1-Month Change: -1.11%
+------------------------------
+
+KO:
+Shares Held: 400,000,000
+Current Price: $65.01
+Position Value: $26,004,000,000.00
+1-Month Change: -8.45%
+------------------------------
+
+CVX:
+Shares Held: 123,120,120
+Current Price: $153.07
+Position Value: $18,845,996,768.40
+1-Month Change: 1.40%
+------------------------------
+
+MCO:
+Shares Held: 24,669,778
+Current Price: $456.36
+Position Value: $11,258,299,888.08
+1-Month Change: -2.94%
+------------------------------

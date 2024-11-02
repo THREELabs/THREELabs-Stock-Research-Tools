@@ -345,10 +345,49 @@ class BuffettTracker:
         try:
             analysis = self.analyze_holdings()
             changes = analysis['changes']
+            holdings = analysis['holdings']
 
-            # Historical Sales Section
-            report += "HISTORICAL SALES SUMMARY:\n"
-            report += "-" * 40 + "\n\n"
+            # Completely Sold Positions Section (New)
+            report += "COMPLETELY SOLD POSITIONS (NO LONGER HELD):\n"
+            report += "=" * 40 + "\n\n"
+            
+            completely_sold = [pos for pos in self.sold_positions 
+                             if pos['sale_type'] == 'complete' and 
+                             pos['symbol'] not in holdings]
+            
+            if completely_sold:
+                for sale in sorted(completely_sold, key=lambda x: x['sale_date'], reverse=True):
+                    report += f"Stock: {sale['symbol']}\n"
+                    report += f"Exit Date: {sale['sale_date']}\n"
+                    report += f"Total Shares Sold: {sale['shares_sold']:,}\n"
+                    report += f"Exit Value: ${sale['sale_value']:,.2f}\n"
+                    report += "-" * 30 + "\n"
+            else:
+                report += "No completely sold positions recorded yet.\n\n"
+
+            # Recent Sales Activity Section
+            report += "\nRECENT SALES ACTIVITY:\n"
+            report += "=" * 40 + "\n\n"
+            
+            recent_sales = [pos for pos in self.sold_positions 
+                          if (datetime.now() - datetime.strptime(pos['sale_date'], "%Y-%m-%d")).days <= 30]
+            
+            if recent_sales:
+                for sale in sorted(recent_sales, key=lambda x: x['sale_date'], reverse=True):
+                    report += f"Stock: {sale['symbol']}\n"
+                    report += f"Sale Date: {sale['sale_date']}\n"
+                    report += f"Type: {sale['sale_type'].title()} Sale\n"
+                    report += f"Shares Sold: {sale['shares_sold']:,}\n"
+                    report += f"Sale Value: ${sale['sale_value']:,.2f}\n"
+                    if sale['sale_type'] == 'partial':
+                        report += f"Remaining Shares: {sale['remaining_shares']:,}\n"
+                    report += "-" * 30 + "\n"
+            else:
+                report += "No sales in the last 30 days.\n\n"
+
+            # All Historical Sales Section
+            report += "\nALL HISTORICAL SALES:\n"
+            report += "=" * 40 + "\n\n"
             
             if self.sold_positions:
                 for sale in sorted(self.sold_positions, key=lambda x: x['sale_date'], reverse=True):
@@ -365,7 +404,7 @@ class BuffettTracker:
 
             # Recent Position Changes Section
             report += "\nRECENT POSITION CHANGES:\n"
-            report += "-" * 40 + "\n\n"
+            report += "=" * 40 + "\n\n"
 
             if changes['new_positions']:
                 report += "NEW POSITIONS:\n"
@@ -374,7 +413,7 @@ class BuffettTracker:
                 report += "\n"
 
             if changes['closed_positions']:
-                report += "CLOSED POSITIONS (COMPLETE SALES):\n"
+                report += "NEWLY CLOSED POSITIONS (COMPLETE SALES):\n"
                 for pos in changes['closed_positions']:
                     report += f"- {pos['symbol']}: Sold all {pos['shares_sold']:,} shares (${pos['value']:,.2f})\n"
                 report += "\n"
@@ -397,9 +436,8 @@ class BuffettTracker:
 
             # Current Holdings Section
             report += "\nCURRENT HOLDINGS SUMMARY:\n"
-            report += "-" * 40 + "\n"
+            report += "=" * 40 + "\n"
 
-            holdings = analysis['holdings']
             for symbol, data in holdings.items():
                 if data.get('shares_held', 0) > 0:  # Only show current holdings
                     report += f"\n{symbol}:\n"
@@ -414,7 +452,7 @@ class BuffettTracker:
         except Exception as e:
             logger.error(f"Error generating report: {str(e)}")
             return f"Error generating report: {str(e)}"
-
+        
 def main():
     tracker = BuffettTracker()
 

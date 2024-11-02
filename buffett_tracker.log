@@ -4,3 +4,10 @@
 2024-11-02 09:19:55,582 - ERROR - An error occurred: 'BuffettTracker' object has no attribute 'generate_report'
 2024-11-02 09:20:07,930 - INFO - Refreshing stock list from 13F filings...
 2024-11-02 09:20:07,930 - ERROR - An error occurred: 'BuffettTracker' object has no attribute 'generate_report'
+2024-11-02 09:22:50,659 - INFO - Refreshing stock list from 13F filings...
+2024-11-02 09:22:51,126 - ERROR - Could not find latest 13F XML filing
+2024-11-02 09:22:51,129 - WARNING - Using backup stock list due to 13F fetch failure
+2024-11-02 09:22:53,076 - ERROR - 404 Client Error: Not Found for url: https://query2.finance.yahoo.com/v10/finance/quoteSummary/ATVI?modules=financialData%2CquoteType%2CdefaultKeyStatistics%2CassetProfile%2CsummaryDetail&corsDomain=finance.yahoo.com&formatted=false&symbol=ATVI&crumb=0ctxPc1MZ87
+2024-11-02 09:22:55,171 - ERROR - $ATVI: possibly delisted; no price data found  (period=1mo) (Yahoo error = "No data found, symbol may be delisted")
+2024-11-02 09:22:56,298 - ERROR - 404 Client Error: Not Found for url: https://query2.finance.yahoo.com/v10/finance/quoteSummary//ATVI?modules=institutionOwnership%2CfundOwnership%2CmajorDirectHolders%2CmajorHoldersBreakdown%2CinsiderTransactions%2CinsiderHolders%2CnetSharePurchaseActivity&corsDomain=finance.yahoo.com&formatted=false&crumb=0ctxPc1MZ87
+2024-11-02 09:22:56,302 - ERROR - Error getting stock data for ATVI: 'Holder'
